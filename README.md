@@ -1,41 +1,38 @@
-# Pocket Pika GS — step-powered color companion
+# Pocket Pika GS v0.4 — Original GIF Gallery Sync
 
-A new fan-made, Pocket Pikachu 2 GS-inspired iPhone app, designed for foldable iPhone layouts.
-Native SwiftUI, no game ROM, Nintendo sprite sheet, or copyrighted music bundled.
+This is a **fan-made digital Pocket Pikachu 2 GS** for the iPhone Duo. It is a new SwiftUI app, not Nintendo's original executable firmware.
 
-**Version:** 0.2 (first experimental build). It has not yet been built with Xcode or tested on a phone.
+## Changes from v0.2 / v0.3
 
-## What is implemented
-- Color handheld-style shell with original hand-drawn pixel companion and time-of-day scenes (breakfast, walk, daydream, play, bath, sleep).
-- Fits a folded single screen; unfolds into a two-panel layout.
-- Apple Health step reading when properly signed; Core Motion iPhone pedometer fallback without special HealthKit signing rights.
-- Earn one Watt for every 20 *credited* steps, with carryover; activity starts counting after selecting a source and refreshes on launch/resume.
-- Seven-day step chart and daily progress ring.
-- Spend 10/25/50/100 Watts to make friends. Pat once per 45 seconds.
-- Higher-or-lower card mini-game (5 W wager, double-or-nothing; ties lose; bank available).
-- Lifetime milestone labels and on-device persisted data.
-- A CI build that assembles an unsigned IPA for a sideloading tool that handles signing.
+- The app resembles the **silver-glitter US Pokémon Pikachu 2 GS handheld** with a dark bezel, LCD, D-pad, A/B, START and SELECT controls.
+- If a step source is not already connected, first launch presents an **Apple Health / iPhone Motion step source chooser**. On sideloaded iPhones, try iPhone Motion first.
+- **Original GIF gallery sync:** When no animations are saved, the app attempts to download original animated GIF assets from the [Serebii Pokémon Pikachu 2 gallery](https://www.serebii.net/virtualpet/pokemonpikachu2/) to its own private Documents folder. The user has asserted permission to use this site's files for this project. On success, GIFs become available offline. The GIF files are **not included** in this source ZIP; downloads happen when the app first runs. The gallery can also be re-synced in START → Settings.
+- GIF playback uses each image's real animation frames/delays and nearest-neighbor pixel scaling. Up/down on the companion screen switches between GIFs in the current category.
+- The companion chooses different animation categories by time of day. Friendship and gift pages use their own GIF categories if the site provides them.
+- Manual GIF/PNG/JPEG import still exists as an alternative if the site is unreachable.
+- Watts, games, existing step-source choice and saved progress continue using the prior bundle identifier and save key.
 
-## Not yet implemented / important differences from original hardware
-- This is an original homage, **not Nintendo's original Pocket Pikachu 2 GS firmware**.
-- No infrared Mystery Gift with physical Game Boy Color Gold/Silver/Crystal hardware.
-- No custom alarm melody composer, device-to-device IR exchanges, original copyrighted art/sound effects, or true pedometer counting while backgrounded without a data-source sync.
-- HealthKit step reads require the signing profile to allow the HealthKit entitlement. Otherwise use **iPhone Motion**. HealthKit privacy rules may return zero steps without telling the app if read permission is denied.
-- iPhone Motion history is limited (usually about a week), so check the app periodically. On changing step sources the app begins at a *new baseline* so it cannot double-count previously credited steps.
-- Walking starts crediting only **after** a source is connected. This avoids an enormous retroactive Watts windfall from historical Apple Health data.
-- No data leaves the device and no user account is needed.
+## Important limitations
 
-## Build an IPA on GitHub Actions
+- The exact original GIFs were **not downloadable in this development environment**, so their live retrieval has not been verified on an iPhone. The app will show a status message if the website blocks or changes the HTML/image links. The GIF selection parser specifically looks for HTML `<img>` descriptions containing *Animated Pocket Pikachu 2*.
+- This is a privately built, unofficial companion. Site ownership does not itself grant ownership of Nintendo/Pokémon characters or trademarks. Do not redistribute the source assets without the necessary rights.
+- Step history begins when the source is first enabled, so old walks cannot accidentally be counted twice.
+- iPhone Motion uses Apple's pedometer history; Apple Health requires signing entitlements that may be unavailable with some sideload methods.
+- Infrared Mystery Gift with original hardware is not implemented.
 
-1. Create a new empty repository at `https://github.com/new?name=PocketPika2-GS` (leave the default branch `main`).
-2. Extract this ZIP on your Windows PC.
-3. In the new repository choose **Add file → Upload files**, and drag in **all extracted project files and directories**, including the hidden `.github` folder containing `.github/workflows/build-ipa.yml`.
-4. Commit to `main`. Open your repository's **Actions** tab. The workflow should run on the commit. If it doesn't, select **Build Pocket Pika GS IPA → Run workflow**.
-5. On a green success run, download `PocketPikaGS-unsigned-IPA` from **Artifacts**. Extract the resulting `PocketPikaGS-unsigned.ipa` from the artifact ZIP.
-6. Sign/sideload the unsigned IPA with your existing tool. Launch and choose either **Apple Health** or **iPhone Motion** in Setup.
+## Build with your existing GitHub repository
 
-## Developer note
-XcodeGen creates `PocketPika.xcodeproj` from `project.yml`. GitHub Actions uses a macOS `xcode-27` runner. There are no third-party Swift packages.
+Existing repository: https://github.com/noggle040/PocketPika2-GS
 
-## License / trademark
-This independent fan app is not affiliated with Nintendo, Creatures, GAME FREAK, or The Pokémon Company. Pokémon and Pocket Pikachu are trademarks of their respective owners. The code and original pixel drawing in this new project may be reused for personal projects; no third-party sprite files are included.
+1. Extract `PocketPikaGS-v0.4-update.zip` on your computer.
+2. Go to the repo, choose **Add file → Upload files**, and drag the extracted `PocketPika` folder and `README.md` onto the GitHub upload form. It should show the new `PocketPika/SpriteLibrary.swift`, updated `PocketPika/PocketPikaView.swift`, and README as changes. Commit directly to `main`.
+3. Your **existing** `.github/workflows/build-ipa.yml` should rebuild the IPA automatically. There's no need to edit the GitHub workflow for the runtime gallery sync.
+4. Open the green Actions run and download `PocketPikaGS-unsigned-IPA`. Extract and sideload the IPA.
+5. On first run: select **iPhone Motion** and allow the app to download sprites. If necessary press START → Settings → **Download or refresh original GIFs**.
+
+You can use the `scripts/collect_serebii_gifs.py` helper to download original GIFs to a folder for testing in an internet-enabled environment. The app does not depend on the script.
+
+## Sources / attribution
+
+- GIF gallery and original handheld documentation: https://www.serebii.net/virtualpet/pokemonpikachu2/
+- Pokémon Pikachu 2 GS is a Nintendo/The Pokémon Company product; this project is not associated with them.

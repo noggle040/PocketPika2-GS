@@ -1,30 +1,39 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
-private enum Palette {
-    static let ink = Color(red: 0.17, green: 0.20, blue: 0.30)
-    static let blue = Color(red: 0.10, green: 0.24, blue: 0.42)
-    static let gold = Color(red: 0.96, green: 0.79, blue: 0.35)
-    static let cream = Color(red: 1.00, green: 0.94, blue: 0.77)
-    static let lcd = Color(red: 0.69, green: 0.88, blue: 0.77)
-    static let aqua = Color(red: 0.39, green: 0.75, blue: 0.72)
-    static let magenta = Color(red: 0.76, green: 0.31, blue: 0.53)
+private enum ShellColor {
+    static let caseSilver = Color(red: 0.70, green: 0.71, blue: 0.74)
+    static let caseBright = Color(red: 0.89, green: 0.90, blue: 0.91)
+    static let caseDark = Color(red: 0.43, green: 0.46, blue: 0.52)
+    static let bezel = Color(red: 0.095, green: 0.14, blue: 0.23)
+    static let lcd = Color(red: 0.70, green: 0.86, blue: 0.67)
+    static let lcdShade = Color(red: 0.48, green: 0.68, blue: 0.49)
+    static let ink = Color(red: 0.12, green: 0.21, blue: 0.18)
+    static let back = Color(red: 0.07, green: 0.11, blue: 0.18)
+    static let bright = Color(red: 0.99, green: 0.96, blue: 0.86)
 }
 
-private enum PikaTab: String, CaseIterable, Identifiable {
-    case home = "HABITAT"
-    case clock = "STEPS"
-    case gift = "GIFT"
-    case coin = "CARDS"
-    case setup = "SETUP"
-
-    var id: String { rawValue }
+private enum DevicePage: Int, CaseIterable, Identifiable {
+    case companion, steps, presents, cards, friend, options
+    var id: Int { rawValue }
+    var label: String {
+        switch self {
+        case .companion: return "PIKA"
+        case .steps: return "STEPS"
+        case .presents: return "GIFT"
+        case .cards: return "CARDS"
+        case .friend: return "FRIEND"
+        case .options: return "OPTIONS"
+        }
+    }
     var symbol: String {
         switch self {
-        case .home: return "house.fill"
-        case .clock: return "clock.fill"
-        case .gift: return "gift.fill"
-        case .coin: return "suit.spade.fill"
-        case .setup: return "gearshape.fill"
+        case .companion: return "house.fill"
+        case .steps: return "clock.fill"
+        case .presents: return "gift.fill"
+        case .cards: return "suit.club.fill"
+        case .friend: return "heart.fill"
+        case .options: return "gearshape.fill"
         }
     }
 }
@@ -32,530 +41,577 @@ private enum PikaTab: String, CaseIterable, Identifiable {
 struct PocketPikaView: View {
     @EnvironmentObject private var store: PocketPikaStore
     @Environment(\.scenePhase) private var scenePhase
-    @State private var tab: PikaTab = .home
+    @StateObject private var sprites = SpriteLibrary()
+    @State private var page: DevicePage = .companion
     @State private var giftAmount = 10
+    @State private var stepsPage = 0
+    @State private var showingSetup = false
+    @State private var showingOptions = false
 
     var body: some View {
         GeometryReader { geometry in
+            let expanded = geometry.size.width >= 680
             ScrollView {
-                VStack(spacing: 20) {
-                    header
-                    if geometry.size.width >= 720 {
-                        HStack(alignment: .top, spacing: 24) {
-                            devicePanel.frame(maxWidth: 525)
-                            controlsPanel.frame(maxWidth: 455)
-                        }
-                    } else {
-                        VStack(spacing: 20) {
-                            devicePanel
-                            controlsPanel
-                        }
+                HStack(alignment: .center, spacing: 28) {
+                    device
+                        .frame(maxWidth: expanded ? 385 : 430)
+                    if expanded {
+                        expandedPanel
+                            .frame(maxWidth: 370)
                     }
-                    Text("A FAN-MADE COLOR STEP COMPANION • SAVES ON THIS DEVICE")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .tracking(1)
-                        .foregroundStyle(Palette.cream.opacity(0.65))
-                        .multilineTextAlignment(.center)
                 }
-                .frame(maxWidth: 1050)
-                .padding(.horizontal, 15)
-                .padding(.top, 15)
-                .padding(.bottom, 30)
+                .frame(maxWidth: 830)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 18)
                 .frame(maxWidth: .infinity)
             }
             .background(
-                LinearGradient(colors: [Palette.blue, Palette.ink, Color(red: 0.06, green: 0.12, blue: 0.21)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing).ignoresSafeArea()
+                LinearGradient(colors: [ShellColor.back, Color(red: 0.12, green: 0.18, blue: 0.28)], startPoint: .top, endPoint: .bottom)
+                    .ignoresSafeArea()
             )
-            .refreshable { await store.refresh() }
         }
-        .tint(Palette.magenta)
-        .task { await store.refresh() }
+        .sheet(isPresented: $showingSetup) {
+            StepSourceSheet(store: store, showDismiss: false)
+                .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingOptions) {
+            DeviceOptionsSheet(store: store, sprites: sprites)
+                .presentationDetents([.medium, .large])
+        }
+        .task {
+            if store.sourceName == "Not connected" { showingSetup = true }
+            await store.refresh()
+            if sprites.galleryCount == 0 { await sprites.syncFromSerebii() }
+        }
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.refresh() } }
         }
-        .onChange(of: tab) { previous, next in
-            if previous == .coin && next != .coin { store.leaveCardGame() }
-        }
     }
 
-    private var header: some View {
-        HStack(alignment: .center) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("POCKET PIKA").font(.system(size: 25, weight: .black, design: .rounded)).tracking(1.3)
-                Text("COLOR GS • WALK TOGETHER").font(.system(size: 11, weight: .semibold, design: .monospaced)).tracking(1.1)
+    // Close-screen: one full virtual handheld. Open-screen: device and secondary dashboard.
+    private var device: some View {
+        VStack(spacing: 0) {
+            Rectangle().fill(Color(red: 0.43, green: 0.20, blue: 0.22))
+                .frame(width: 85, height: 7).clipShape(Capsule())
+                .padding(.top, 11).padding(.bottom, 10)
+
+            VStack(spacing: 3) {
+                Text("GS")
+                    .font(.system(size: 22, weight: .black, design: .rounded)).italic()
+                    .foregroundStyle(ShellColor.bright)
+                lcdScreen
+                    .padding(.horizontal, 14)
+                Text("POKÉMON PIKACHU 2")
+                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .tracking(0.7)
+                    .foregroundStyle(ShellColor.bright)
+                    .padding(.bottom, 10)
             }
-            Spacer(minLength: 8)
-            HStack(spacing: 5) {
+            .padding(.top, 10)
+            .padding(.bottom, 10)
+            .background(
+                LinearGradient(colors: [Color(red: 0.17, green: 0.23, blue: 0.33), ShellColor.bezel], startPoint: .top, endPoint: .bottom),
+                in: UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 40, bottomTrailingRadius: 40, topTrailingRadius: 24)
+            )
+            .padding(.horizontal, 24)
+
+            HStack(alignment: .center, spacing: 6) {
+                dpad
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 Image(systemName: "bolt.fill")
-                Text("\(store.watts.formatted()) W")
-            }
-            .font(.system(size: 13, weight: .heavy, design: .monospaced))
-            .padding(.horizontal, 12)
-            .padding(.vertical, 9)
-            .background(Palette.cream.opacity(0.14), in: Capsule())
-        }
-        .foregroundStyle(Palette.cream)
-    }
-
-    private var devicePanel: some View {
-        VStack(spacing: 15) {
-            HStack {
-                Text("POCKET PIKA 2")
-                    .font(.system(size: 17, weight: .heavy, design: .rounded))
-                Spacer()
-                Text("COLOR")
-                    .font(.system(size: 10, weight: .black, design: .monospaced))
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Palette.blue, in: Capsule())
-                    .foregroundStyle(Palette.cream)
-            }
-            .foregroundStyle(Palette.ink)
-
-            VStack(spacing: 10) {
-                HStack {
-                    Label(store.currentScene, systemImage: "sun.max.fill")
-                    Spacer()
-                    TimelineView(.periodic(from: .now, by: 60)) { context in
-                        Text(context.date, style: .time)
-                    }
-                }
-                .font(.system(size: 12, weight: .black, design: .monospaced))
-                .lineLimit(1)
-                PetSceneView(scene: store.currentScene, friendship: store.friendship)
+                    .font(.system(size: 35, weight: .bold))
+                    .foregroundStyle(ShellColor.bezel.opacity(0.93))
+                    .rotationEffect(.degrees(-25))
                     .frame(maxWidth: .infinity)
-                    .frame(height: 218)
-                    .background(Palette.lcd.opacity(0.72), in: RoundedRectangle(cornerRadius: 7))
-                    .accessibilityLabel("Animated pixel companion, \(store.currentScene.lowercased())")
-
-                Text(store.message)
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .multilineTextAlignment(.center)
-                    .lineLimit(3)
-                    .frame(minHeight: 40)
-
-                HStack(spacing: 8) {
-                    tinyMetric("TODAY", store.todaySteps.formatted())
-                    tinyMetric("WATTS", "\(store.watts) W")
-                    tinyMetric("BOND", "\(store.friendship)%")
+                VStack(spacing: 14) {
+                    circleButton("A", size: 55, action: tapA)
+                    circleButton("B", size: 39, action: tapB)
+                        .offset(x: -22)
                 }
+                .frame(maxWidth: .infinity, alignment: .trailing)
             }
-            .foregroundStyle(Palette.ink)
-            .padding(14)
-            .background(Palette.lcd, in: RoundedRectangle(cornerRadius: 13))
-            .overlay(RoundedRectangle(cornerRadius: 13).strokeBorder(Palette.ink, lineWidth: 5))
+            .padding(.horizontal, 30)
+            .padding(.top, 24)
 
-            HStack(spacing: 8) {
-                Circle().fill(Palette.magenta).frame(width: 10, height: 10)
-                Text("20 STEPS = 1 WATT")
-                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
+            HStack(spacing: 25) {
+                ovalButton("SELECT") { page = .friend }
+                ovalButton("START") { showingOptions = true }
+            }
+            .padding(.top, 8)
+            .padding(.bottom, 31)
+
+            Text("DIGITAL GS  ·  A FAN PROJECT")
+                .font(.system(size: 8, weight: .bold, design: .monospaced))
+                .foregroundStyle(ShellColor.bezel.opacity(0.65))
+                .padding(.bottom, 8)
+        }
+        .background {
+            RoundedRectangle(cornerRadius: 64)
+                .fill(LinearGradient(colors: [ShellColor.caseBright, ShellColor.caseSilver, ShellColor.caseDark], startPoint: .topLeading, endPoint: .bottomTrailing))
+                .overlay { GlitterSurface().clipShape(RoundedRectangle(cornerRadius: 64)) }
+        }
+        .overlay {
+            RoundedRectangle(cornerRadius: 64)
+                .strokeBorder(.white.opacity(0.35), lineWidth: 3)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 64))
+        .shadow(color: .black.opacity(0.55), radius: 20, x: 0, y: 14)
+    }
+
+    private var lcdScreen: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text(page.label)
                 Spacer()
-                Image(systemName: "bolt.fill")
-            }
-            .foregroundStyle(Palette.ink)
-        }
-        .padding(20)
-        .background(
-            LinearGradient(colors: [Palette.cream, Palette.gold], startPoint: .top, endPoint: .bottom),
-            in: RoundedRectangle(cornerRadius: 28)
-        )
-        .overlay(RoundedRectangle(cornerRadius: 28).strokeBorder(Palette.ink, lineWidth: 4))
-        .shadow(color: .black.opacity(0.25), radius: 13, y: 8)
-    }
-
-    private func tinyMetric(_ heading: String, _ value: String) -> some View {
-        VStack(spacing: 4) {
-            Text(heading).font(.system(size: 9, weight: .heavy, design: .monospaced))
-            Text(value)
-                .font(.system(size: 15, weight: .black, design: .monospaced))
-                .lineLimit(1)
-                .minimumScaleFactor(0.65)
-        }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, 9)
-        .background(Palette.cream.opacity(0.45), in: RoundedRectangle(cornerRadius: 6))
-    }
-
-    private var controlsPanel: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(PikaTab.allCases) { item in
-                        Button {
-                            tab = item
-                        } label: {
-                            VStack(spacing: 5) {
-                                Image(systemName: item.symbol).font(.system(size: 16))
-                                Text(item.rawValue).font(.system(size: 9, weight: .heavy, design: .monospaced))
-                            }
-                            .frame(minWidth: 57)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 10)
-                            .foregroundStyle(tab == item ? Palette.ink : Palette.cream)
-                            .background(tab == item ? Palette.gold : Palette.cream.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-                        }
-                        .buttonStyle(.plain)
-                    }
+                TimelineView(.periodic(from: .now, by: 60)) { timeline in
+                    Text(timeline.date, format: .dateTime.hour().minute())
                 }
             }
+            .font(.system(size: 10, weight: .black, design: .monospaced))
+            .padding(.horizontal, 7).padding(.top, 6)
+
             Group {
-                switch tab {
-                case .home: homePanel
-                case .clock: stepsPanel
-                case .gift: giftPanel
-                case .coin: cardPanel
-                case .setup: setupPanel
+                switch page {
+                case .companion: companionScreen
+                case .steps: stepScreen
+                case .presents: giftScreen
+                case .cards: cardScreen
+                case .friend: friendScreen
+                case .options: optionsScreen
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .padding(17)
-        .background(Palette.cream.opacity(0.10), in: RoundedRectangle(cornerRadius: 24))
-        .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(Palette.cream.opacity(0.18)))
-        .foregroundStyle(Palette.cream)
-    }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(height: 184)
 
-    private var homePanel: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            sectionTitle("YOUR COMPANION", sub: "Daily scenes change with the time")
-            HStack {
-                VStack(alignment: .leading, spacing: 5) {
-                    Text(store.levelName).font(.system(size: 19, weight: .black, design: .rounded))
-                    Text("Friendship").font(.system(size: 11, design: .monospaced))
+            HStack(spacing: 0) {
+                ForEach(DevicePage.allCases) { item in
+                    Button {
+                        page = item
+                        if item == .options { showingOptions = true }
+                    } label: {
+                        Image(systemName: item.symbol)
+                            .font(.system(size: 12, weight: .bold))
+                            .frame(maxWidth: .infinity).frame(height: 30)
+                            .foregroundStyle(page == item ? ShellColor.bright : ShellColor.ink)
+                            .background(page == item ? ShellColor.ink : Color.clear)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.label)
                 }
-                Spacer()
-                Text("\(store.friendship)/100").font(.system(size: 24, weight: .black, design: .rounded))
             }
-            ProgressView(value: Double(store.friendship), total: 100)
-                .tint(Palette.gold)
-            Button { store.patPika() } label: {
-                Label("PAT YOUR FRIEND", systemImage: "hand.raised.fill")
-            }.buttonStyle(PikaButtonStyle())
-            HStack(spacing: 10) {
-                infoTile("NEXT WATT", "\(store.stepsToNextWatt) steps")
-                infoTile("ALL-TIME", store.lifetimeSteps.formatted())
-            }
-            Text(store.milestone)
-                .font(.system(size: 11, weight: .black, design: .monospaced))
-                .foregroundStyle(Palette.gold)
-            Text("Unlike a typical virtual pet, this companion cares for itself. Visit throughout the day to catch different activities.")
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.75))
+            .padding(4)
+            .background(ShellColor.lcdShade.opacity(0.45))
+        }
+        .foregroundStyle(ShellColor.ink)
+        .background(ShellColor.lcd)
+        .overlay { Rectangle().strokeBorder(ShellColor.lcdShade, lineWidth: 5) }
+        .aspectRatio(1.10, contentMode: .fit)
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private var sceneSlot: String {
+        switch store.currentScene {
+        case "BREAKFAST": return "meal"
+        case "STROLLING": return "walk"
+        case "PLAYTIME", "DAYDREAMING": return "play"
+        case "BATH TIME": return "bath"
+        case "SLEEPY", "DREAMING": return "sleep"
+        default: return "idle"
         }
     }
 
-    private var stepsPanel: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            sectionTitle("ACTIVITY CLOCK", sub: "Seven days of real movement")
-            TimelineView(.periodic(from: .now, by: 60)) { context in
-                Text(context.date, format: .dateTime.hour().minute())
-                    .font(.system(size: 43, weight: .black, design: .monospaced))
-            }
-            HStack {
-                Text("TODAY  \(store.todaySteps.formatted()) / \(store.dailyGoal.formatted())")
-                    .font(.system(size: 11, weight: .heavy, design: .monospaced))
-                Spacer()
-                Text("\(Int(store.dailyProgress * 100))%")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-            }
-            ProgressView(value: store.dailyProgress)
-                .tint(Palette.gold)
-            HStack(alignment: .bottom, spacing: 8) {
-                if store.lastWeek.isEmpty {
-                    Text("Connect a step source to see your week.")
-                        .font(.system(size: 12, design: .monospaced))
-                        .frame(maxWidth: .infinity, minHeight: 90)
+    private var companionScreen: some View {
+        VStack(spacing: 5) {
+            ZStack {
+                if let sprite = sprites.animation(for: sceneSlot) {
+                    AnimatedPixelSprite(animation: sprite)
+                        .frame(maxWidth: .infinity, maxHeight: 147)
+                        .padding(.horizontal, 8)
                 } else {
-                    ForEach(store.lastWeek) { day in
-                        VStack(spacing: 6) {
-                            Text("\(day.steps)")
-                                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                                .minimumScaleFactor(0.55)
-                                .lineLimit(1)
-                            RoundedRectangle(cornerRadius: 5)
-                                .fill(Palette.aqua)
-                                .frame(height: max(5, 90 * CGFloat(min(day.steps, 12_000)) / 12_000))
-                                .frame(height: 90, alignment: .bottom)
-                            Text(day.label.uppercased())
-                                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                    VStack(spacing: 6) {
+                        Image(systemName: "photo.artframe")
+                            .font(.system(size: 34, weight: .light))
+                        Text(sprites.isSyncing ? "LOADING ORIGINAL GIFS" : "CONNECT TO GIF GALLERY")
+                            .font(.system(size: 11, weight: .black, design: .monospaced))
+                        Text("START → SETTINGS")
+                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    }
+                    .multilineTextAlignment(.center)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            HStack {
+                Text(sprites.galleryCount > 0 ? sprites.title(for: sceneSlot) : store.currentScene)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.5)
+                Spacer()
+                Label("\(store.watts) W", systemImage: "bolt.fill")
+            }
+            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+        }
+        .padding(.horizontal, 9)
+    }
+
+    private var stepScreen: some View {
+        VStack(spacing: 10) {
+            if stepsPage == 0 {
+                Text("TODAY'S STEPS")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                Text(store.todaySteps.formatted())
+                    .font(.system(size: 37, weight: .black, design: .monospaced))
+                Text("\(store.stepsToNextWatt) steps to next Watt")
+                    .font(.system(size: 10, design: .monospaced))
+            } else if stepsPage == 1 {
+                Text("LAST 7 DAYS")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                HStack(alignment: .bottom, spacing: 6) {
+                    ForEach(store.lastWeek) { entry in
+                        VStack(spacing: 3) {
+                            Rectangle().fill(ShellColor.ink)
+                                .frame(width: 13, height: max(2, CGFloat(entry.steps) / 120))
+                            Text(entry.label.prefix(1).uppercased())
+                                .font(.system(size: 8, weight: .heavy, design: .monospaced))
                         }
-                        .frame(maxWidth: .infinity)
                     }
                 }
-            }
-            infoTile("LIFETIME STEPS", store.lifetimeSteps.formatted())
-            Text("Weekly history comes from your selected step source. Watts start accumulating only after you connect it.")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.75))
-        }
-    }
-
-    private var giftPanel: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            sectionTitle("GIVE A GIFT", sub: "Spending Watts builds friendship")
-            HStack {
-                Image(systemName: "gift.fill").font(.system(size: 42)).foregroundStyle(Palette.gold)
-                Spacer()
-                VStack(alignment: .trailing, spacing: 3) {
-                    Text("\(store.watts.formatted()) W")
-                        .font(.system(size: 27, weight: .black, design: .rounded))
-                    Text("AVAILABLE").font(.system(size: 10, weight: .bold, design: .monospaced))
-                }
-            }
-            Text("CHOOSE WATTS")
-                .font(.system(size: 11, weight: .heavy, design: .monospaced))
-            HStack(spacing: 8) {
-                ForEach([10, 25, 50, 100], id: \.self) { value in
-                    Button("\(value)") { giftAmount = value }
-                        .font(.system(size: 13, weight: .heavy, design: .monospaced))
-                        .foregroundStyle(giftAmount == value ? Palette.ink : Palette.cream)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 13)
-                        .background(giftAmount == value ? Palette.gold : Palette.cream.opacity(0.15),
-                                    in: RoundedRectangle(cornerRadius: 10))
-                        .buttonStyle(.plain)
-                }
-            }
-            Button { store.giveWatts(giftAmount) } label: {
-                Label("GIVE \(giftAmount) WATTS", systemImage: "heart.fill")
-            }
-            .buttonStyle(PikaButtonStyle())
-            .disabled(store.watts < giftAmount)
-            Text("Total Watts gifted: \(store.giftsGiven.formatted())")
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-            Text("Larger gifts earn more friendship. Save your Watts from walking or play higher-or-lower to try to win more.")
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.75))
-        }
-    }
-
-    private var cardPanel: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            sectionTitle("HIGHER OR LOWER", sub: "Pocket Pikachu 2-style card game")
-            HStack(spacing: 14) {
-                VStack(spacing: 6) {
-                    Text(store.currentlyPlaying ? "\(store.currentCard)" : "?")
-                        .font(.system(size: 64, weight: .black, design: .rounded))
-                        .frame(width: 115, height: 145)
-                        .background(Palette.cream, in: RoundedRectangle(cornerRadius: 12))
-                        .foregroundStyle(Palette.magenta)
-                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(Palette.gold, lineWidth: 4))
-                    Text("CURRENT").font(.system(size: 10, weight: .heavy, design: .monospaced))
-                }
-                VStack(alignment: .leading, spacing: 9) {
-                    Text("BANK: \(store.pendingWin) W")
-                        .font(.system(size: 17, weight: .black, design: .monospaced))
-                    Text("STREAK: \(store.streak)")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    Text("BEST: \(store.bestStreak)")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    Text("BET: 5 W")
-                        .font(.system(size: 12, design: .monospaced))
-                }
-            }
-            Text(store.lastCardResult.isEmpty ? "Guess higher or lower. Correct answers double your pot; ties lose." : store.lastCardResult)
-                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                .frame(minHeight: 46, alignment: .leading)
-            if store.currentlyPlaying {
-                HStack(spacing: 10) {
-                    Button("↑ HIGHER") { store.guess(true) }.buttonStyle(PikaButtonStyle())
-                    Button("↓ LOWER") { store.guess(false) }.buttonStyle(PikaButtonStyle())
-                }
-                Button("BANK \(store.pendingWin) W") { store.bankWin() }
-                    .buttonStyle(PikaButtonStyle(secondary: true))
+                .frame(height: 105, alignment: .bottom)
             } else {
-                Button("BET 5 W • DEAL") { store.startCardGame() }
-                    .buttonStyle(PikaButtonStyle())
-                    .disabled(store.watts < 5)
+                Text("ALL TIME")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                Text(store.lifetimeSteps.formatted())
+                    .font(.system(size: 35, weight: .black, design: .monospaced))
+                Text("TOTAL STEPS")
+                    .font(.system(size: 11, design: .monospaced))
             }
-            Text("Cards range from 2 through 12. This is a just-for-fun in-app game using earned Watts, not real money.")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.75))
+            Text("← / →  CHANGE VIEW")
+                .font(.system(size: 8, design: .monospaced))
         }
     }
 
-    private var setupPanel: some View {
-        VStack(alignment: .leading, spacing: 17) {
-            sectionTitle("STEP SOURCE", sub: "Choose one source; no double counting")
-            HStack {
-                Image(systemName: "figure.walk").foregroundStyle(Palette.gold)
-                Text("\(store.sourceName)").font(.system(size: 14, weight: .bold, design: .monospaced))
-                Spacer()
-                if store.isLoading { ProgressView().tint(Palette.gold) }
+    private var giftScreen: some View {
+        VStack(spacing: 10) {
+            Text("GIVE A PRESENT")
+                .font(.system(size: 13, weight: .black, design: .monospaced))
+            if let sprite = sprites.animation(for: "gift") {
+                AnimatedPixelSprite(animation: sprite)
+                    .frame(height: 90)
+            } else {
+                Image(systemName: "gift.fill").font(.system(size: 41))
             }
-            Button { store.enableHealth() } label: {
-                Label("USE APPLE HEALTH", systemImage: "heart.text.square")
-            }.buttonStyle(PikaButtonStyle())
-            Button { store.enableMotion() } label: {
-                Label("USE IPHONE MOTION", systemImage: "iphone.gen3.radiowaves.left.and.right")
-            }.buttonStyle(PikaButtonStyle(secondary: true))
-            Button { Task { await store.refresh() } } label: {
-                Label("REFRESH STEPS", systemImage: "arrow.clockwise")
-            }.buttonStyle(PikaButtonStyle(secondary: true))
-            Text("Apple Health requires special signing entitlements. If it shows zero steps after granting access, switch to iPhone Motion and take a short walk to test. Motion-only history is limited by iOS.")
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.75))
-            Text("There is no infrared Mystery Gift transfer to Pokémon Gold/Silver/Crystal. Your progress stays private and on your device.")
-                .font(.system(size: 11, design: .rounded))
-                .foregroundStyle(Palette.cream.opacity(0.65))
+            Text("\(giftAmount) W")
+                .font(.system(size: 29, weight: .black, design: .monospaced))
+            Text("↑ / ↓  AMOUNT    A = GIVE")
+                .font(.system(size: 9, design: .monospaced))
         }
     }
 
-    private func sectionTitle(_ title: String, sub: String) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.system(size: 21, weight: .black, design: .rounded))
-            Text(sub).font(.system(size: 12, design: .rounded)).foregroundStyle(Palette.cream.opacity(0.70))
+    private var cardScreen: some View {
+        VStack(spacing: 8) {
+            Text("HIGHER OR LOWER")
+                .font(.system(size: 12, weight: .black, design: .monospaced))
+            Text(store.currentlyPlaying ? String(store.currentCard) : "?")
+                .font(.system(size: 54, weight: .black, design: .monospaced))
+            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) W" : "A = BET 5 W")
+                .font(.system(size: 12, weight: .bold, design: .monospaced))
+            Text(store.currentlyPlaying ? "↑ HIGHER   ↓ LOWER   B BANK" : "Guesses cost 5 Watts")
+                .font(.system(size: 9, design: .monospaced))
         }
     }
 
-    private func infoTile(_ title: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 7) {
-            Text(title).font(.system(size: 10, weight: .heavy, design: .monospaced))
-            Text(value).font(.system(size: 20, weight: .black, design: .rounded))
-                .lineLimit(1).minimumScaleFactor(0.7)
+    private var friendScreen: some View {
+        VStack(spacing: 12) {
+            if let sprite = sprites.animation(for: "friend") {
+                AnimatedPixelSprite(animation: sprite)
+                    .frame(height: 96)
+            } else {
+                Image(systemName: "heart.fill").font(.system(size: 40))
+            }
+            Text(store.levelName)
+                .font(.system(size: 17, weight: .black, design: .monospaced))
+            Text("FRIENDSHIP  \(store.friendship) / 100")
+                .font(.system(size: 12, design: .monospaced))
+            Text("A = PAT")
+                .font(.system(size: 10, design: .monospaced))
+        }
+    }
+
+    private var optionsScreen: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "gearshape.fill").font(.system(size: 36))
+            Text("STEP SOURCE")
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+            Text(store.sourceName)
+                .font(.system(size: 14, weight: .black, design: .monospaced))
+            Text("A / START  →  SETTINGS")
+                .font(.system(size: 9, design: .monospaced))
+        }
+    }
+
+    private var dpad: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 6)
+                .fill(ShellColor.bezel)
+                .frame(width: 111, height: 37)
+            RoundedRectangle(cornerRadius: 6)
+                .fill(ShellColor.bezel)
+                .frame(width: 37, height: 111)
+            Circle().fill(ShellColor.caseDark)
+                .frame(width: 26, height: 26)
+            arrow("chevron.up", x: 0, y: -37) { tapDirection(.up) }
+            arrow("chevron.down", x: 0, y: 37) { tapDirection(.down) }
+            arrow("chevron.left", x: -37, y: 0) { tapDirection(.left) }
+            arrow("chevron.right", x: 37, y: 0) { tapDirection(.right) }
+        }
+        .frame(width: 112, height: 112)
+    }
+
+    private enum Direction { case up, down, left, right }
+
+    private func arrow(_ icon: String, x: CGFloat, y: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .heavy))
+                .foregroundStyle(ShellColor.caseBright)
+                .frame(width: 35, height: 35)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .offset(x: x, y: y)
+    }
+
+    private func circleButton(_ title: String, size: CGFloat, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 15, weight: .heavy, design: .rounded))
+                .foregroundStyle(ShellColor.caseBright)
+                .frame(width: size, height: size)
+                .background(ShellColor.bezel, in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 2))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func ovalButton(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 4) {
+                Capsule().fill(ShellColor.bezel).frame(width: 33, height: 16)
+                    .overlay(Capsule().strokeBorder(ShellColor.caseBright.opacity(0.2)))
+                Text(title)
+                    .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                    .foregroundStyle(ShellColor.bezel)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func tapA() {
+        switch page {
+        case .companion:
+            store.patPika()
+            sprites.advance(sceneSlot)
+        case .friend: store.patPika()
+        case .steps: Task { await store.refresh() }
+        case .presents: store.giveWatts(giftAmount)
+        case .cards: if !store.currentlyPlaying { store.startCardGame() } else { store.bankWin() }
+        case .options: showingOptions = true
+        }
+    }
+
+    private func tapB() {
+        if page == .cards && store.currentlyPlaying { store.bankWin() }
+        else { page = .companion }
+    }
+
+    private func tapDirection(_ direction: Direction) {
+        if page == .companion && (direction == .up || direction == .down) {
+            sprites.advance(sceneSlot, by: direction == .up ? 1 : -1)
+            return
+        }
+        if page == .cards && store.currentlyPlaying {
+            if direction == .up { store.guess(true) }
+            if direction == .down { store.guess(false) }
+            return
+        }
+        if page == .presents && (direction == .up || direction == .down) {
+            let gifts = [10, 25, 50, 100, 200, 500]
+            let currentIndex = gifts.firstIndex(of: giftAmount) ?? 0
+            giftAmount = gifts[min(gifts.count - 1, max(0, currentIndex + (direction == .up ? 1 : -1)))]
+            return
+        }
+        if page == .steps && (direction == .left || direction == .right) {
+            stepsPage = (stepsPage + (direction == .right ? 1 : 2)) % 3
+            return
+        }
+        let pages = DevicePage.allCases
+        page = pages[(page.rawValue + ((direction == .right || direction == .down) ? 1 : pages.count - 1)) % pages.count]
+        if page == .options { showingOptions = true }
+    }
+
+    private var expandedPanel: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            Text("POCKET PIKA GS")
+                .font(.system(size: 25, weight: .black, design: .rounded))
+                .foregroundStyle(ShellColor.bright)
+            Text("\(sprites.galleryCount) original GS animations available")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShellColor.bright.opacity(0.85))
+            Text("Your digital walking companion")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(ShellColor.bright.opacity(0.65))
+            HStack(spacing: 10) {
+                statCard("STEPS", store.todaySteps.formatted())
+                statCard("WATTS", store.watts.formatted())
+            }
+            HStack(spacing: 10) {
+                statCard("FRIEND", "\(store.friendship)%")
+                statCard("SOURCE", store.sourceName)
+            }
+            Text(store.message)
+                .font(.system(size: 13, design: .rounded))
+                .foregroundStyle(ShellColor.bright)
+            Button { showingOptions = true } label: {
+                Label("Step source & GIF gallery", systemImage: "gearshape.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(14)
+                    .background(ShellColor.caseBright, in: RoundedRectangle(cornerRadius: 12))
+                    .foregroundStyle(ShellColor.bezel)
+            }
+            Text("D-PAD: Navigate  ·  ↑↓ on Pika: change GIF\nA: Pat/Select  ·  B: Back  ·  START: Settings")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(ShellColor.bright.opacity(0.65))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(Palette.cream.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+        .padding(20)
+        .background(ShellColor.bright.opacity(0.06), in: RoundedRectangle(cornerRadius: 22))
     }
-}
 
-private struct PikaButtonStyle: ButtonStyle {
-    var secondary = false
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12, weight: .black, design: .monospaced))
-            .foregroundStyle(secondary ? Palette.cream : Palette.ink)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 15)
-            .background(secondary ? Palette.cream.opacity(0.15) : Palette.gold, in: RoundedRectangle(cornerRadius: 12))
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-    }
-}
-
-private struct PetSceneView: View {
-    let scene: String
-    let friendship: Int
-
-    private var sceneIcon: String {
-        switch scene {
-        case "BREAKFAST": return "fork.knife"
-        case "STROLLING": return "figure.walk"
-        case "PLAYTIME": return "figure.run"
-        case "BATH TIME": return "drop.fill"
-        case "SLEEPY", "DREAMING": return "moon.zzz.fill"
-        default: return "cloud.sun.fill"
+    private func statCard(_ title: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text(title).font(.system(size: 10, weight: .heavy, design: .monospaced))
+            Text(value).font(.system(size: 21, weight: .black, design: .rounded)).minimumScaleFactor(0.55).lineLimit(1)
         }
-    }
-
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.75)) { timeline in
-            let pulse = Int(timeline.date.timeIntervalSince1970 * 2) % 2 == 0
-            ZStack {
-                GeometryReader { geo in
-                    Canvas { context, size in
-                        let horizon = CGRect(x: 0, y: size.height * 0.77, width: size.width, height: size.height * 0.23)
-                        context.fill(Path(horizon), with: .color(Color(red: 0.45, green: 0.67, blue: 0.55)))
-                        for index in 0..<7 {
-                            let px = CGFloat(index) * size.width / 7
-                            let rect = CGRect(x: px, y: size.height * (0.78 + (index % 2 == 0 ? 0.02 : 0.08)), width: 5, height: 12)
-                            context.fill(Path(rect), with: .color(Palette.blue.opacity(0.48)))
-                        }
-                    }
-                    PixelPalView(eyesClosed: scene == "SLEEPY" || scene == "DREAMING", wave: pulse)
-                        .frame(width: min(geo.size.width * 0.78, 290), height: geo.size.height * 0.84)
-                        .position(x: geo.size.width / 2, y: geo.size.height * (pulse ? 0.47 : 0.49))
-                }
-                VStack {
-                    HStack {
-                        Spacer()
-                        Image(systemName: sceneIcon)
-                            .font(.system(size: 27, weight: .black))
-                            .foregroundStyle(Palette.blue.opacity(0.8))
-                            .padding(12)
-                    }
-                    Spacer()
-                    HStack {
-                        Text(friendship >= 80 ? "♥ ♥ ♥" : friendship >= 40 ? "♥ ♥" : "♥")
-                            .font(.system(size: 16, weight: .black, design: .monospaced))
-                            .foregroundStyle(Palette.magenta)
-                        Spacer()
-                        Text(scene == "DREAMING" || scene == "SLEEPY" ? "Z z z" : (pulse ? "♪" : "♫"))
-                            .font(.system(size: 17, weight: .black, design: .monospaced))
-                            .foregroundStyle(Palette.blue)
-                    }
-                }
-                .padding(10)
-            }
-        }
+        .foregroundStyle(ShellColor.bright)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(14)
+        .background(ShellColor.caseBright.opacity(0.11), in: RoundedRectangle(cornerRadius: 12))
     }
 }
 
-// Hand-drawn, original pixel companion: no game ROMs or ripped sprites.
-private struct PixelPalView: View {
-    let eyesClosed: Bool
-    let wave: Bool
-
-    private let pixels = [
-        ".......KK................KK.......",
-        ".......KYYK..............KYYK......",
-        ".......KYYYK............KYYYK......",
-        "........KYYYK..........KYYYK.......",
-        "........KYYYYK........KYYYYK.......",
-        ".........KYYYYKKKKKKKKYYYYK........",
-        ".........KYYYYYYYYYYYYYYYYK........",
-        "........KYYYYYYYYYYYYYYYYYYK.......",
-        ".......KYYYYYYYYYYYYYYYYYYYYK......",
-        ".......KYYYYYYYYYYYYYYYYYYYYK......",
-        "......KYYYYYKYYYYYYYYKYYYYYYK.....",
-        "......KYYYYKKYYYYYYYYKKYYYYYK.....",
-        "......KYYYYKKYYYYYYYYKKYYYYYK.....",
-        "......KYYYYYYYYBKKBYYYYYYYYYK.....",
-        "......KYYRYYYYYYYYYYYYYYYYRYYK.....",
-        ".......KRRRYYYYYYYYYYYYRRRK.......",
-        ".......KYYYYYYYYYYYYYYYYYYK.......",
-        "........KYYYYYYYYYYYYYYYYK........",
-        ".........KKYYYYYYYYYYYYKK.........",
-        "..........KYYYYYYYYYYK...........",
-        ".........KYYYYYYYYYYYYK..........",
-        "........KYYYYYYYYYYYYYYK.........",
-        "........KKYYYYYKKYYYYYKK.........",
-        "..........KKKKK..KKKKK..........."
-    ]
-
+// Deterministic glitter points mimic the fine silver flecks of the US GS shell.
+private struct GlitterSurface: View {
     var body: some View {
         Canvas { context, size in
-            let lines = pixels.map { Array($0) }
-            let columns = lines.map(\.count).max() ?? 1
-            let unit = min(size.width / CGFloat(columns), size.height / CGFloat(lines.count))
-            let xOffset = (size.width - CGFloat(columns) * unit) / 2
-            let yOffset = (size.height - CGFloat(lines.count) * unit) / 2
-            for (y, line) in lines.enumerated() {
-                for (x, item) in line.enumerated() {
-                    var character = item
-                    // Two-frame blinking animation for the eyes.
-                    if eyesClosed && (y == 11 || y == 12), character == "K" { character = "B" }
-                    let tint: Color
-                    switch character {
-                    case "K": tint = Palette.ink
-                    case "Y": tint = Color(red: 0.99, green: 0.79, blue: 0.19)
-                    case "R": tint = Color(red: 0.93, green: 0.37, blue: 0.35)
-                    case "B": tint = Color(red: 0.44, green: 0.32, blue: 0.28)
-                    default: continue
-                    }
-                    let pixel = CGRect(x: xOffset + CGFloat(x) * unit, y: yOffset + CGFloat(y) * unit,
-                                       width: ceil(unit), height: ceil(unit))
-                    context.fill(Path(pixel), with: .color(tint))
-                }
-            }
-            if wave {
-                let spark = CGRect(x: size.width * 0.78, y: size.height * 0.22, width: max(3, unit), height: max(3, unit))
-                context.fill(Path(spark), with: .color(Palette.gold))
+            for i in 0..<470 {
+                let x = CGFloat((i * 73 + 47) % 997) / 997 * size.width
+                let y = CGFloat((i * 181 + 13) % 991) / 991 * size.height
+                let r: CGFloat = i.isMultiple(of: 5) ? 1.4 : 0.75
+                let rect = CGRect(x: x, y: y, width: r, height: r)
+                context.fill(Path(ellipseIn: rect), with: .color((i.isMultiple(of: 3) ? Color.white : ShellColor.bezel).opacity(0.28)))
             }
         }
-        .drawingGroup(opaque: false, colorMode: .nonLinear)
+        .allowsHitTesting(false)
+    }
+}
+
+private struct StepSourceSheet: View {
+    @ObservedObject var store: PocketPikaStore
+    let showDismiss: Bool
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text("CONNECT YOUR STEPS")
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                Spacer()
+                if showDismiss {
+                    Button("Done") { dismiss() }
+                }
+            }
+            Text("Choose how Pocket Pika counts steps. 20 credited steps earn one Watt. You can change this later with START → Settings.")
+                .font(.system(size: 14, design: .rounded))
+            Button {
+                store.enableMotion()
+                dismiss()
+            } label: {
+                Label("Use iPhone Motion (recommended)", systemImage: "figure.walk")
+                    .frame(maxWidth: .infinity).padding(14)
+            }
+            .buttonStyle(.borderedProminent)
+            Button {
+                store.enableHealth()
+                dismiss()
+            } label: {
+                Label("Use Apple Health", systemImage: "heart.text.square")
+                    .frame(maxWidth: .infinity).padding(14)
+            }
+            .buttonStyle(.bordered)
+            Text("Apple Health needs special signing permissions. iPhone Motion is generally easier for sideloading, and starts recording new credited steps once connected.")
+                .font(.system(size: 12, design: .rounded))
+                .foregroundStyle(.secondary)
+        }
+        .padding(24)
+    }
+}
+
+private struct DeviceOptionsSheet: View {
+    @ObservedObject var store: PocketPikaStore
+    @ObservedObject var sprites: SpriteLibrary
+    @Environment(\.dismiss) private var dismiss
+    @State private var selectedSlot = "idle"
+    @State private var pickingFile = false
+    @State private var showingSource = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("STEP TRACKING") {
+                    LabeledContent("Current", value: store.sourceName)
+                    Button("Change step source") { showingSource = true }
+                    Button("Refresh now") { Task { await store.refresh() } }
+                }
+                Section("ORIGINAL GS GIF GALLERY") {
+                    LabeledContent("Gallery", value: "\(sprites.galleryCount) animations")
+                    if sprites.isSyncing { ProgressView("Downloading GIFs") }
+                    Text(sprites.syncStatus).font(.footnote)
+                    Button("Download or refresh original GIFs") {
+                        Task { await sprites.syncFromSerebii() }
+                    }
+                    .disabled(sprites.isSyncing)
+                    Text("Animations are downloaded from the Serebii Pocket Pikachu 2 guide to local storage. A network connection is needed on first setup; subsequent playback works offline.")
+                        .font(.footnote)
+                    Text("You can also import a GIF or PNG to override the selected scene; pixel scaling stays crisp.")
+                        .font(.footnote)
+                    Picker("Animation", selection: $selectedSlot) {
+                        ForEach(SpriteLibrary.slots, id: \.key) { slot in
+                            Text(slot.title).tag(slot.key)
+                        }
+                    }
+                    LabeledContent("Loaded", value: sprites.name(for: selectedSlot))
+                    Button("Import GIF / PNG") { pickingFile = true }
+                    if let message = sprites.errorMessage {
+                        Text(message).foregroundStyle(.red)
+                    }
+                    Text("GS artwork is from the linked Serebii gallery, as authorized for this project. The Pokémon character remains owned by its rights holders.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                Section("CONTROLS") {
+                    Text("D-Pad selects menus, A confirms, B goes back, START opens this screen, and SELECT shows friendship.")
+                        .font(.footnote)
+                }
+            }
+            .navigationTitle("GS Settings")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+        }
+        .fileImporter(isPresented: $pickingFile, allowedContentTypes: [.gif, .png, .jpeg]) { result in
+            switch result {
+            case .success(let url): sprites.importSprite(url, into: selectedSlot)
+            case .failure(let error): sprites.errorMessage = error.localizedDescription
+            }
+        }
+        .sheet(isPresented: $showingSource) {
+            StepSourceSheet(store: store, showDismiss: true)
+                .presentationDetents([.medium, .large])
+        }
     }
 }
