@@ -2,9 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 private enum ShellColor {
-    static let caseSilver = Color(red: 0.70, green: 0.71, blue: 0.74)
-    static let caseBright = Color(red: 0.89, green: 0.90, blue: 0.91)
-    static let caseDark = Color(red: 0.43, green: 0.46, blue: 0.52)
+    static let caseSilver = Color(red: 0.99, green: 0.75, blue: 0.14)
+    static let caseBright = Color(red: 1.00, green: 0.92, blue: 0.39)
+    static let caseDark = Color(red: 0.77, green: 0.48, blue: 0.09)
     static let bezel = Color(red: 0.095, green: 0.14, blue: 0.23)
     static let lcd = Color(red: 0.70, green: 0.86, blue: 0.67)
     static let lcdShade = Color(red: 0.48, green: 0.68, blue: 0.49)
@@ -50,26 +50,39 @@ struct PocketPikaView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let expanded = geometry.size.width >= 680
-            ScrollView {
-                HStack(alignment: .center, spacing: 28) {
-                    device
-                        .frame(maxWidth: expanded ? 385 : 430)
-                    if expanded {
-                        expandedPanel
-                            .frame(maxWidth: 370)
+            // The Duo's cover is portrait (about 1:1.45) while the inner display
+            // is landscape. Use the actual available shape rather than an arbitrary
+            // minimum width, so the outer screen is always a full handheld.
+            let unfolded = geometry.size.width > geometry.size.height * 1.10
+            ZStack {
+                if unfolded {
+                    let deviceScale = min((geometry.size.width * 0.50) / 320, (geometry.size.height - 18) / 470)
+                    HStack(spacing: 12) {
+                        handheld
+                            .frame(width: 320, height: 470)
+                            .scaleEffect(deviceScale)
+                            .frame(width: 320 * deviceScale, height: 470 * deviceScale)
+                        ScrollView {
+                            expandedPanel
+                                .padding(.vertical, 10)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
+                    .padding(.horizontal, 12)
+                } else {
+                    let scale = min(geometry.size.width / 320, geometry.size.height / 470)
+                    handheld
+                        .frame(width: 320, height: 470)
+                        .scaleEffect(scale)
+                        .frame(width: 320 * scale, height: 470 * scale)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
-                .frame(maxWidth: 830)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 18)
-                .frame(maxWidth: .infinity)
             }
-            .background(
-                LinearGradient(colors: [ShellColor.back, Color(red: 0.12, green: 0.18, blue: 0.28)], startPoint: .top, endPoint: .bottom)
-                    .ignoresSafeArea()
-            )
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .background(unfolded ? ShellColor.back : ShellColor.caseBright)
         }
+        .ignoresSafeArea(.container, edges: .all)
+        .statusBarHidden()
         .sheet(isPresented: $showingSetup) {
             StepSourceSheet(store: store, showDismiss: false)
                 .presentationDetents([.medium, .large])
@@ -79,7 +92,7 @@ struct PocketPikaView: View {
                 .presentationDetents([.medium, .large])
         }
         .task {
-            if store.sourceName == "Not connected" { showingSetup = true }
+            if store.sourceName == "Not connected" || (store.sourceName == "Apple Health" && !store.hasHealthKitEntitlement) { showingSetup = true }
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.syncFromSerebii() }
         }
@@ -88,74 +101,87 @@ struct PocketPikaView: View {
         }
     }
 
-    // Close-screen: one full virtual handheld. Open-screen: device and secondary dashboard.
-    private var device: some View {
+    // One 320 x 470 virtual handheld. On the Duo's closed cover display,
+    // it scales to the full screen instead of being placed inside a scrolling card.
+    private var handheld: some View {
         VStack(spacing: 0) {
-            Rectangle().fill(Color(red: 0.43, green: 0.20, blue: 0.22))
-                .frame(width: 85, height: 7).clipShape(Capsule())
-                .padding(.top, 11).padding(.bottom, 10)
+            Capsule()
+                .fill(ShellColor.caseDark.opacity(0.75))
+                .frame(width: 70, height: 5)
+                .padding(.top, 13)
+                .padding(.bottom, 7)
 
             VStack(spacing: 3) {
-                Text("GS")
-                    .font(.system(size: 22, weight: .black, design: .rounded)).italic()
-                    .foregroundStyle(ShellColor.bright)
+                HStack(spacing: 0) {
+                    Text("COLOR").font(.system(size: 8, weight: .heavy, design: .monospaced))
+                    Spacer()
+                    Text("GS").font(.system(size: 19, weight: .black, design: .rounded)).italic()
+                }
+                .foregroundStyle(ShellColor.bright)
+                .padding(.horizontal, 19)
+                .frame(height: 25)
+
                 lcdScreen
-                    .padding(.horizontal, 14)
+                    .frame(width: 256, height: 193)
+                    .padding(.horizontal, 11)
+
                 Text("POKÉMON PIKACHU 2")
-                    .font(.system(size: 13, weight: .black, design: .rounded))
+                    .font(.system(size: 12, weight: .black, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(ShellColor.bright)
-                    .padding(.bottom, 10)
+                    .frame(height: 18)
             }
-            .padding(.top, 10)
-            .padding(.bottom, 10)
+            .padding(.vertical, 7)
+            .frame(width: 296, height: 259)
             .background(
-                LinearGradient(colors: [Color(red: 0.17, green: 0.23, blue: 0.33), ShellColor.bezel], startPoint: .top, endPoint: .bottom),
-                in: UnevenRoundedRectangle(topLeadingRadius: 24, bottomLeadingRadius: 40, bottomTrailingRadius: 40, topTrailingRadius: 24)
+                UnevenRoundedRectangle(topLeadingRadius: 25, bottomLeadingRadius: 39, bottomTrailingRadius: 39, topTrailingRadius: 25)
+                    .fill(LinearGradient(colors: [Color(red: 0.15, green: 0.20, blue: 0.27), ShellColor.bezel], startPoint: .topLeading, endPoint: .bottomTrailing))
             )
-            .padding(.horizontal, 24)
+            .padding(.top, 5)
 
-            HStack(alignment: .center, spacing: 6) {
+            HStack(alignment: .center, spacing: 0) {
                 dpad
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Image(systemName: "bolt.fill")
-                    .font(.system(size: 35, weight: .bold))
-                    .foregroundStyle(ShellColor.bezel.opacity(0.93))
-                    .rotationEffect(.degrees(-25))
-                    .frame(maxWidth: .infinity)
-                VStack(spacing: 14) {
-                    circleButton("A", size: 55, action: tapA)
-                    circleButton("B", size: 39, action: tapB)
-                        .offset(x: -22)
+                    .frame(width: 118, alignment: .leading)
+                VStack(spacing: 5) {
+                    Image(systemName: "bolt.fill")
+                        .font(.system(size: 36, weight: .black))
+                        .rotationEffect(.degrees(-24))
+                    Text("PIKA")
+                        .font(.system(size: 10, weight: .black, design: .monospaced))
                 }
-                .frame(maxWidth: .infinity, alignment: .trailing)
+                .foregroundStyle(ShellColor.bezel.opacity(0.86))
+                .frame(width: 67)
+                VStack(spacing: 13) {
+                    circleButton("A", size: 52, action: tapA)
+                    circleButton("B", size: 39, action: tapB)
+                        .offset(x: -17)
+                }
+                .frame(width: 91, alignment: .trailing)
             }
-            .padding(.horizontal, 30)
-            .padding(.top, 24)
+            .frame(width: 294, height: 130)
 
-            HStack(spacing: 25) {
+            HStack(spacing: 35) {
                 ovalButton("SELECT") { page = .friend }
                 ovalButton("START") { showingOptions = true }
             }
-            .padding(.top, 8)
-            .padding(.bottom, 31)
+            .frame(height: 35)
 
-            Text("DIGITAL GS  ·  A FAN PROJECT")
-                .font(.system(size: 8, weight: .bold, design: .monospaced))
-                .foregroundStyle(ShellColor.bezel.opacity(0.65))
-                .padding(.bottom, 8)
+            Spacer(minLength: 0)
+            Text("POCKET PIKA GS  ·  YELLOW v0.5")
+                .font(.system(size: 8, weight: .black, design: .monospaced))
+                .tracking(0.45)
+                .foregroundStyle(ShellColor.bezel.opacity(0.7))
+                .frame(height: 15)
         }
-        .background {
-            RoundedRectangle(cornerRadius: 64)
-                .fill(LinearGradient(colors: [ShellColor.caseBright, ShellColor.caseSilver, ShellColor.caseDark], startPoint: .topLeading, endPoint: .bottomTrailing))
-                .overlay { GlitterSurface().clipShape(RoundedRectangle(cornerRadius: 64)) }
-        }
-        .overlay {
-            RoundedRectangle(cornerRadius: 64)
-                .strokeBorder(.white.opacity(0.35), lineWidth: 3)
-        }
-        .clipShape(RoundedRectangle(cornerRadius: 64))
-        .shadow(color: .black.opacity(0.55), radius: 20, x: 0, y: 14)
+        .frame(width: 320, height: 470)
+        .background(
+            LinearGradient(colors: [ShellColor.caseBright, ShellColor.caseSilver, ShellColor.caseBright],
+                           startPoint: .topLeading, endPoint: .bottomTrailing)
+        )
+        .overlay { GlitterSurface().allowsHitTesting(false) }
+        .clipShape(RoundedRectangle(cornerRadius: 35))
+        .overlay(RoundedRectangle(cornerRadius: 35).strokeBorder(.white.opacity(0.26), lineWidth: 2))
+        .shadow(color: .black.opacity(0.17), radius: 6, x: 0, y: 5)
     }
 
     private var lcdScreen: some View {
@@ -168,7 +194,8 @@ struct PocketPikaView: View {
                 }
             }
             .font(.system(size: 10, weight: .black, design: .monospaced))
-            .padding(.horizontal, 7).padding(.top, 6)
+            .frame(height: 19)
+            .padding(.horizontal, 6)
 
             Group {
                 switch page {
@@ -181,7 +208,7 @@ struct PocketPikaView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(height: 184)
+            .clipped()
 
             HStack(spacing: 0) {
                 ForEach(DevicePage.allCases) { item in
@@ -190,8 +217,9 @@ struct PocketPikaView: View {
                         if item == .options { showingOptions = true }
                     } label: {
                         Image(systemName: item.symbol)
-                            .font(.system(size: 12, weight: .bold))
-                            .frame(maxWidth: .infinity).frame(height: 30)
+                            .font(.system(size: 11, weight: .bold))
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 25)
                             .foregroundStyle(page == item ? ShellColor.bright : ShellColor.ink)
                             .background(page == item ? ShellColor.ink : Color.clear)
                     }
@@ -199,13 +227,12 @@ struct PocketPikaView: View {
                     .accessibilityLabel(item.label)
                 }
             }
-            .padding(4)
+            .padding(2)
             .background(ShellColor.lcdShade.opacity(0.45))
         }
         .foregroundStyle(ShellColor.ink)
         .background(ShellColor.lcd)
-        .overlay { Rectangle().strokeBorder(ShellColor.lcdShade, lineWidth: 5) }
-        .aspectRatio(1.10, contentMode: .fit)
+        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(ShellColor.lcdShade, lineWidth: 3) }
         .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
@@ -497,16 +524,16 @@ struct PocketPikaView: View {
     }
 }
 
-// Deterministic glitter points mimic the fine silver flecks of the US GS shell.
+// Deterministic translucent specks on the custom yellow GS shell.
 private struct GlitterSurface: View {
     var body: some View {
         Canvas { context, size in
             for i in 0..<470 {
                 let x = CGFloat((i * 73 + 47) % 997) / 997 * size.width
                 let y = CGFloat((i * 181 + 13) % 991) / 991 * size.height
-                let r: CGFloat = i.isMultiple(of: 5) ? 1.4 : 0.75
+                let r: CGFloat = i.isMultiple(of: 5) ? 1.0 : 0.5
                 let rect = CGRect(x: x, y: y, width: r, height: r)
-                context.fill(Path(ellipseIn: rect), with: .color((i.isMultiple(of: 3) ? Color.white : ShellColor.bezel).opacity(0.28)))
+                context.fill(Path(ellipseIn: rect), with: .color((i.isMultiple(of: 3) ? Color.white : ShellColor.caseDark).opacity(0.16)))
             }
         }
         .allowsHitTesting(false)
@@ -519,38 +546,62 @@ private struct StepSourceSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
-            HStack {
-                Text("CONNECT YOUR STEPS")
-                    .font(.system(size: 22, weight: .black, design: .rounded))
-                Spacer()
-                if showDismiss {
-                    Button("Done") { dismiss() }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Text("CONNECT YOUR STEPS")
+                        .font(.system(size: 21, weight: .black, design: .rounded))
+                    Spacer()
+                    if showDismiss { Button("Close") { dismiss() } }
                 }
+                Text("Choose a source to earn one Watt for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
+                    .font(.system(size: 13, design: .rounded))
+
+                Button {
+                    store.enableHealth()
+                } label: {
+                    Label("Connect Apple Health", systemImage: "heart.text.square")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(store.isRequestingHealth)
+
+                Button {
+                    store.enableMotion()
+                } label: {
+                    Label("Use iPhone Motion instead", systemImage: "figure.walk")
+                        .frame(maxWidth: .infinity)
+                        .padding(12)
+                }
+                .buttonStyle(.bordered)
+                .disabled(store.isRequestingHealth)
+
+                if store.isRequestingHealth {
+                    ProgressView("Opening Health permissions…")
+                }
+                VStack(alignment: .leading, spacing: 7) {
+                    Text("CURRENT: \(store.sourceName)")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    Text(store.connectionStatus)
+                        .font(.system(size: 12, design: .rounded))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Text(store.hasHealthKitEntitlement ? "HealthKit signing entitlement: found" : "HealthKit signing entitlement: missing. Your sideload signing tool must include this capability; otherwise Apple Health cannot open its permission sheet.")
+                        .font(.system(size: 11, design: .rounded))
+                        .foregroundStyle(store.hasHealthKitEntitlement ? Color.secondary : Color.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                Button("Continue to handheld") { dismiss() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(store.sourceName == "Not connected" || store.isRequestingHealth)
+
+                Text("Health read permission is private: a completed request does not prove access was granted. If the count stays at zero, check Health → Data Access & Devices → Pocket Pika GS, or use Motion.")
+                    .font(.system(size: 11, design: .rounded))
+                    .foregroundStyle(.secondary)
             }
-            Text("Choose how Pocket Pika counts steps. 20 credited steps earn one Watt. You can change this later with START → Settings.")
-                .font(.system(size: 14, design: .rounded))
-            Button {
-                store.enableMotion()
-                dismiss()
-            } label: {
-                Label("Use iPhone Motion (recommended)", systemImage: "figure.walk")
-                    .frame(maxWidth: .infinity).padding(14)
-            }
-            .buttonStyle(.borderedProminent)
-            Button {
-                store.enableHealth()
-                dismiss()
-            } label: {
-                Label("Use Apple Health", systemImage: "heart.text.square")
-                    .frame(maxWidth: .infinity).padding(14)
-            }
-            .buttonStyle(.bordered)
-            Text("Apple Health needs special signing permissions. iPhone Motion is generally easier for sideloading, and starts recording new credited steps once connected.")
-                .font(.system(size: 12, design: .rounded))
-                .foregroundStyle(.secondary)
+            .padding(22)
         }
-        .padding(24)
     }
 }
 
@@ -567,6 +618,8 @@ private struct DeviceOptionsSheet: View {
             Form {
                 Section("STEP TRACKING") {
                     LabeledContent("Current", value: store.sourceName)
+                    LabeledContent("HealthKit signing", value: store.hasHealthKitEntitlement ? "Available" : "Unavailable")
+                    Text(store.connectionStatus).font(.footnote)
                     Button("Change step source") { showingSource = true }
                     Button("Refresh now") { Task { await store.refresh() } }
                 }

@@ -1,6 +1,7 @@
 import Foundation
 import HealthKit
 import CoreMotion
+import Security
 import SwiftUI
 
 struct DayEntry: Identifiable {
@@ -37,6 +38,8 @@ final class PocketPikaStore: ObservableObject {
     @Published private(set) var sourceName = "Not connected"
     @Published private(set) var message = "Let's explore together!"
     @Published private(set) var isLoading = false
+    @Published private(set) var isRequestingHealth = false
+    @Published private(set) var connectionStatus = "Choose Apple Health or iPhone Motion to start counting steps."
     @Published private(set) var currentCard = 0
     @Published private(set) var pendingWin = 0
     @Published private(set) var streak = 0
@@ -103,22 +106,44 @@ final class PocketPikaStore: ObservableObject {
         else if game.source == "motion" { await syncMotion() }
     }
 
+    // Check the entitlement in the *installed, signed app*, not just the source plist.
+    // Unsigned GitHub builds rely on a sideload signing profile to grant it.
+    var hasHealthKitEntitlement: Bool {
+        guard let task = SecTaskCreateFromSelf(kCFAllocatorDefault) else { return false }
+        return (SecTaskCopyValueForEntitlement(task, "com.apple.developer.healthkit" as CFString, nil) as? Bool) == true
+    }
+
     func enableHealth() {
+        guard !isRequestingHealth else { return }
         guard HKHealthStore.isHealthDataAvailable(),
               let steps = HKObjectType.quantityType(forIdentifier: .stepCount) else {
-            message = "Health isn't available. Use iPhone Motion."
+            connectionStatus = "Apple Health isn't available on this device. Choose iPhone Motion."
+            message = connectionStatus
             return
         }
-        isLoading = true
-        health.requestAuthorization(toShare: [], read: [steps]) { [weak self] _, error in
+        guard hasHealthKitEntitlement else {
+            connectionStatus = "The installed app was signed without the HealthKit entitlement. Apple Health cannot show its permission prompt. You can use iPhone Motion now, or re-sign with a profile that supports HealthKit."
+            message = connectionStatus
+            return
+        }
+        isRequestingHealth = true
+        connectionStatus = "Requesting step-count access from Apple Health…"
+        health.requestAuthorization(toShare: [], read: [steps]) { [weak self] completed, error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                self.isLoading = false
+                self.isRequestingHealth = false
                 if let error {
-                    self.message = "Health permission failed: \(error.localizedDescription)"
+                    self.connectionStatus = "HealthKit returned: \(error.localizedDescription). Try iPhone Motion or check your signing profile."
+                    self.message = self.connectionStatus
+                    return
+                }
+                guard completed else {
+                    self.connectionStatus = "HealthKit did not complete the authorization request. Try again or use iPhone Motion."
+                    self.message = self.connectionStatus
                     return
                 }
                 self.switchSource("health")
+                self.connectionStatus = "Health authorization request completed. iOS does not disclose read-permission decisions; verify the Steps access in the Health app."
                 await self.syncHealth()
             }
         }
@@ -126,10 +151,12 @@ final class PocketPikaStore: ObservableObject {
 
     func enableMotion() {
         guard CMPedometer.isStepCountingAvailable() else {
-            message = "Motion step counting isn't available."
+            connectionStatus = "iPhone Motion step counting isn't available on this device."
+            message = connectionStatus
             return
         }
         switchSource("motion")
+        connectionStatus = "iPhone Motion selected. iOS may ask for Motion & Fitness access when the first step query runs."
         Task { await syncMotion() }
     }
 
@@ -263,6 +290,7 @@ final class PocketPikaStore: ObservableObject {
             persist()
         } catch {
             message = "Health steps unavailable: \(error.localizedDescription). Try Motion."
+            connectionStatus = message
         }
     }
 
@@ -286,6 +314,7 @@ final class PocketPikaStore: ObservableObject {
             persist()
         } catch {
             message = "Motion data unavailable: \(error.localizedDescription)"
+            connectionStatus = message
         }
     }
 
