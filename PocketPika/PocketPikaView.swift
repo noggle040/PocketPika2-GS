@@ -167,7 +167,7 @@ struct PocketPikaView: View {
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  YELLOW v0.5.1")
+            Text("POCKET PIKA GS  ·  YELLOW v0.5.2")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))

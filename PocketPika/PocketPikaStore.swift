@@ -47,6 +47,9 @@ final class PocketPikaStore: ObservableObject {
     @Published private(set) var giftsGiven = 0
 
     private let saveKey = "pocket-pika-gs.v2"
+    // Stored separately so existing v0.2–v0.5.1 saves decode unchanged.
+    private let stepCreditDateKey = "pocket-pika-gs.v2.credit-date"
+    private let stepCreditCountKey = "pocket-pika-gs.v2.credit-count"
     private let health = HKHealthStore()
     private let pedometer = CMPedometer()
     private var game: PikaSave
@@ -261,26 +264,58 @@ final class PocketPikaStore: ObservableObject {
         persist()
     }
 
+    // The value earned for this calendar day, across both step sources.
+    // This prevents switching Health/Motion or pressing Refresh from paying twice.
+    private func creditedSteps(for day: Date) -> Int {
+        let defaults = UserDefaults.standard
+        if let savedDate = defaults.object(forKey: stepCreditDateKey) as? Date,
+           Calendar.current.isDate(savedDate, inSameDayAs: day) {
+            return max(0, defaults.integer(forKey: stepCreditCountKey))
+        }
+        // Migrate a v0.5.1 Health save that already awarded steps since
+        // connection earlier today. If none were awarded, import all of today.
+        if game.source == "health" && Calendar.current.isDate(game.sourceBegan, inSameDayAs: day) {
+            return max(0, game.healthRecorded)
+        }
+        return 0
+    }
+
+    private func recordCreditedSteps(_ count: Int, for day: Date) {
+        UserDefaults.standard.set(day, forKey: stepCreditDateKey)
+        UserDefaults.standard.set(max(0, count), forKey: stepCreditCountKey)
+    }
+
     private func syncHealth() async {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard HKHealthStore.isHealthDataAvailable() else {
+            connectionStatus = "Apple Health is unavailable on this device."
+            return
+        }
         isLoading = true
         defer { isLoading = false }
         do {
             let now = Date()
             let day = Calendar.current.startOfDay(for: now)
-            let base = game.sourceBegan
-            async let sinceEnabled = healthSteps(from: base, to: now)
-            async let today = healthSteps(from: day, to: now)
-            let (cumulative, todayCount) = try await (sinceEnabled, today)
-            let delta = max(0, cumulative - game.healthRecorded)
-            game.healthRecorded = max(game.healthRecorded, cumulative)
-            addNewSteps(delta)
-            todaySteps = todayCount
+            // Import today's *entire* step total instead of querying only
+            // the tiny interval since the Health button was pressed.
+            let currentTotal = try await healthSteps(from: day, to: now)
+            let alreadyCredited = creditedSteps(for: day)
+            let newSteps = max(0, currentTotal - alreadyCredited)
+            todaySteps = currentTotal
+            if newSteps > 0 { addNewSteps(newSteps) }
+            recordCreditedSteps(max(alreadyCredited, currentTotal), for: day)
+            // Older releases used this as a since-connected watermark. Keep
+            // the saved property for compatibility but do not use it for deltas.
+            game.healthRecorded = max(game.healthRecorded, currentTotal)
+            if currentTotal > 0 {
+                connectionStatus = "Apple Health shows \(currentTotal.formatted()) steps today. Imported \(newSteps.formatted()) new steps into Pocket Pika."
+            } else {
+                connectionStatus = "Apple Health returned no readable steps for today. If Health itself shows steps, open Settings > Health > Data Access & Devices > Pocket Pika GS and enable reading Steps. HealthKit cannot reveal whether read permission was denied."
+            }
             await refreshWeek(isHealth: true, now: now)
             persist()
         } catch {
-            message = "Health steps unavailable: \(error.localizedDescription). Try Motion."
-            connectionStatus = message
+            connectionStatus = "Apple Health step query failed: \(error.localizedDescription) [code \((error as NSError).code)]. Check Steps read permission or use iPhone Motion."
+            message = connectionStatus
         }
     }
 
@@ -290,16 +325,25 @@ final class PocketPikaStore: ObservableObject {
         defer { isLoading = false }
         let now = Date()
         let day = Calendar.current.startOfDay(for: now)
-        // iOS exposes only a limited motion history. Never double-count the old interval.
         let cutoff = now.addingTimeInterval(-6 * 86_400)
         let cursor = max(game.motionCursor ?? game.sourceBegan, cutoff)
         do {
-            async let sinceLast = motionSteps(from: cursor, to: now)
-            async let today = motionSteps(from: day, to: now)
-            let (newSteps, todayCount) = try await (sinceLast, today)
+            // Motion can still catch up on steps from prior days without
+            // mixing them into today's Health/Motion reconciliation.
+            let earlierSteps: Int
+            if cursor < day {
+                earlierSteps = (try? await motionSteps(from: cursor, to: day)) ?? 0
+            } else {
+                earlierSteps = 0
+            }
+            let currentTotal = try await motionSteps(from: day, to: now)
+            let alreadyCredited = creditedSteps(for: day)
+            let newToday = max(0, currentTotal - alreadyCredited)
             game.motionCursor = now
-            addNewSteps(newSteps)
-            todaySteps = todayCount
+            todaySteps = currentTotal
+            addNewSteps(earlierSteps + newToday)
+            recordCreditedSteps(max(alreadyCredited, currentTotal), for: day)
+            connectionStatus = "iPhone Motion shows \(currentTotal.formatted()) steps today. Added \((earlierSteps + newToday).formatted()) uncounted steps."
             await refreshWeek(isHealth: false, now: now)
             persist()
         } catch {
@@ -331,7 +375,17 @@ final class PocketPikaStore: ObservableObject {
         return try await withCheckedThrowingContinuation { continuation in
             let predicate = HKQuery.predicateForSamples(withStart: start, end: end, options: .strictStartDate)
             let query = HKStatisticsQuery(quantityType: type, quantitySamplePredicate: predicate, options: .cumulativeSum) { _, stats, error in
-                if let error { continuation.resume(throwing: error); return }
+                if let error {
+                    let nsError = error as NSError
+                    // HealthKit sends errorNoData (11) for empty statistics
+                    // intervals. An empty interval is zero steps, not a crash.
+                    if nsError.domain == HKErrorDomain && nsError.code == HKError.Code.errorNoData.rawValue {
+                        continuation.resume(returning: 0)
+                    } else {
+                        continuation.resume(throwing: error)
+                    }
+                    return
+                }
                 continuation.resume(returning: max(0, Int(stats?.sumQuantity()?.doubleValue(for: .count()) ?? 0)))
             }
             health.execute(query)
