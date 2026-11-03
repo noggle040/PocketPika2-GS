@@ -1,0 +1,70 @@
+
+name: Build Pocket Pika GS IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    runs-on: xcode-27
+    timeout-minutes: 45
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Verify Xcode and SDK
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: |
+          xcodegen generate --spec project.yml
+          xcodebuild -list -project PocketPika.xcodeproj
+
+      - name: Build unsigned IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -project PocketPika.xcodeproj \
+            -scheme PocketPika \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath "$RUNNER_TEMP/PikaDerived" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+      - name: Package IPA
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/PikaDerived/Build/Products/Release-iphoneos/PocketPika.app"
+          test -d "$APP"
+          test -f "$APP/PocketPika"
+          mkdir -p "$RUNNER_TEMP/PikaIPA/Payload"
+          ditto "$APP" "$RUNNER_TEMP/PikaIPA/Payload/PocketPika.app"
+          cd "$RUNNER_TEMP/PikaIPA"
+          zip -q -r -X "$GITHUB_WORKSPACE/PocketPikaGS-unsigned.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PocketPikaGS-unsigned.ipa"
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: PocketPikaGS-unsigned-IPA
+          path: PocketPikaGS-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 30
