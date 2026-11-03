@@ -19,13 +19,87 @@ struct PixelAnimation {
             let gif = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
             let seconds = (gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue
                 ?? (gif?[kCGImagePropertyGIFDelayTime] as? NSNumber)?.doubleValue ?? 0.16
-            loaded.append(UIImage(cgImage: image))
+            // The archived GIFs have opaque white canvases. Remove only
+            // white pixels connected to the outer edge of each frame, keeping
+            // the yellow Pikachu and isolated white details intact.
+            let frame = fileURL.pathExtension.lowercased() == "gif"
+                ? Self.clearWhiteBackdrop(of: image) : UIImage(cgImage: image)
+            loaded.append(frame)
             delays.append(max(0.06, seconds))
         }
         guard !loaded.isEmpty else { return nil }
         frames = loaded
         durations = delays
         totalDuration = delays.reduce(0, +)
+    }
+
+    // Edge-connected near-white removal avoids turning unrelated light
+    // details inside Pikachu transparent. The frame is decoded once and
+    // cached by SpriteLibrary; animation playback stays lightweight.
+    private static func clearWhiteBackdrop(of original: CGImage) -> UIImage {
+        let width = original.width
+        let height = original.height
+        guard width > 0, height > 0, width <= 1200, height <= 1200 else {
+            return UIImage(cgImage: original)
+        }
+        let stride = width * 4
+        var pixels = [UInt8](repeating: 0, count: stride * height)
+        let processed: CGImage? = pixels.withUnsafeMutableBytes { raw -> CGImage? in
+            guard let context = CGContext(
+                data: raw.baseAddress,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: stride,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue |
+                            CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else { return nil }
+            context.interpolationQuality = .none
+            context.draw(original, in: CGRect(x: 0, y: 0, width: width, height: height))
+            let data = raw.bindMemory(to: UInt8.self)
+            let total = width * height
+            var visited = [Bool](repeating: false, count: total)
+            var pending = [Int]()
+            pending.reserveCapacity(min(total, 2048))
+
+            func enqueue(_ pixel: Int) {
+                guard pixel >= 0, pixel < total, !visited[pixel] else { return }
+                visited[pixel] = true
+                let offset = pixel * 4
+                let transparent = data[offset + 3] < 25
+                let white = data[offset] >= 238 &&
+                            data[offset + 1] >= 238 &&
+                            data[offset + 2] >= 238
+                if transparent || white { pending.append(pixel) }
+            }
+            for x in 0..<width {
+                enqueue(x)
+                enqueue((height - 1) * width + x)
+            }
+            for y in 0..<height {
+                enqueue(y * width)
+                enqueue(y * width + width - 1)
+            }
+            var head = 0
+            while head < pending.count {
+                let pixel = pending[head]
+                head += 1
+                let offset = pixel * 4
+                data[offset] = 0
+                data[offset + 1] = 0
+                data[offset + 2] = 0
+                data[offset + 3] = 0
+                let x = pixel % width
+                let y = pixel / width
+                if x > 0 { enqueue(pixel - 1) }
+                if x + 1 < width { enqueue(pixel + 1) }
+                if y > 0 { enqueue(pixel - width) }
+                if y + 1 < height { enqueue(pixel + width) }
+            }
+            return context.makeImage()
+        }
+        return processed.map { UIImage(cgImage: $0) } ?? UIImage(cgImage: original)
     }
 
     func frame(at date: Date) -> UIImage {

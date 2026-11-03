@@ -336,7 +336,7 @@ struct PocketPikaView: View {
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  YELLOW v0.8.2")
+            Text("POCKET PIKA GS  ·  YELLOW v0.8.3")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))
@@ -385,7 +385,10 @@ struct PocketPikaView: View {
             .frame(height: 19)
             .padding(.horizontal, 6)
 
-            Group {
+            // The LCD's usable content stage is 144pt tall. Give every page
+            // an explicit viewport so vertically hungry layouts cannot stretch
+            // the green display over the navy bezel or the handheld buttons.
+            ZStack {
                 switch page {
                 case .companion: companionScreen
                 case .steps: stepScreen
@@ -395,7 +398,7 @@ struct PocketPikaView: View {
                 case .options: optionsScreen
                 }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(width: 250, height: 144)
             .clipped()
 
             HStack(spacing: 0) {
@@ -550,20 +553,25 @@ struct PocketPikaView: View {
     }
 
     private var giftScreen: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 3) {
             Text("GIVE A PRESENT")
-                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .lineLimit(1)
             if let sprite = sprites.animation(named: PikaDailyLife.giftReaction(max(1, giftAmount)).keyword, fallbackSlot: "gift") {
                 AnimatedPixelSprite(animation: sprite)
-                    .frame(height: 90)
+                    .frame(width: 186, height: 72)
             } else {
-                Image(systemName: "gift.fill").font(.system(size: 41))
+                Image(systemName: "gift.fill").font(.system(size: 31))
+                    .frame(height: 72)
             }
             Text("\(giftAmount) W")
-                .font(.system(size: 29, weight: .black, design: .monospaced))
-            Text("↑ MORE  ↓ LESS   A GIVE")
-                .font(.system(size: 9, design: .monospaced))
+                .font(.system(size: 24, weight: .black, design: .monospaced))
+                .lineLimit(1)
+            Text("↑ MORE   ↓ LESS   A GIVE")
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .lineLimit(1)
         }
+        .frame(width: 242, height: 140)
     }
 
     private var cardScreen: some View {
@@ -615,24 +623,29 @@ struct PocketPikaView: View {
     private var originalFriendshipLabel: String { store.friendshipState }
 
     private var friendScreen: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 3) {
             if let sprite = sprites.animation(named: friendshipSpriteName, fallbackSlot: "friend") {
                 AnimatedPixelSprite(animation: sprite)
-                    .frame(height: 96)
+                    .frame(width: 170, height: 65)
             } else {
-                Image(systemName: "heart.fill").font(.system(size: 40))
+                Image(systemName: "heart.fill").font(.system(size: 27))
+                    .frame(height: 65)
             }
             Text(originalFriendshipLabel)
-                .font(.system(size: 17, weight: .black, design: .monospaced))
-            Text("FRIENDSHIP STATUS")
-                .font(.system(size: 12, design: .monospaced))
-            Text("CHECK-IN " + (store.checkedInToday ? "✓ TODAY" : "NOT YET"))
-                .font(.system(size: 10, weight: .bold, design: .monospaced))
-            Text("CARE: \(min(store.todaySteps, store.minimumDailyCareSteps).formatted()) / 3,000 STEPS")
-                .font(.system(size: 9, design: .monospaced))
-            Text("SELECT = FRIENDSHIP  ·  B = BACK")
-                .font(.system(size: 9, design: .monospaced))
+                .font(.system(size: 13, weight: .black, design: .monospaced))
+                .lineLimit(1)
+            HStack(spacing: 8) {
+                Text(store.checkedInToday ? "✓ CHECKED IN" : "CHECK IN TODAY")
+                Text("•")
+                Text("\(min(store.todaySteps, store.minimumDailyCareSteps).formatted()) / 3,000")
+            }
+            .font(.system(size: 8, weight: .bold, design: .monospaced))
+            .lineLimit(1)
+            Text("B BACK   ·   SELECT STATUS")
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
+                .lineLimit(1)
         }
+        .frame(width: 244, height: 140)
     }
 
     private var optionsScreen: some View {
