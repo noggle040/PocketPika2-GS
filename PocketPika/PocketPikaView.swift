@@ -32,10 +32,121 @@ private enum DevicePage: Int, CaseIterable, Identifiable {
         case .companion: return "house.fill"
         case .steps: return "clock.fill"
         case .presents: return "gift.fill"
-        case .cards: return "suit.club.fill"
+        case .cards: return "circle.hexagongrid.fill"
         case .friend: return "heart.fill"
         case .options: return "gearshape.fill"
         }
+    }
+}
+
+
+// Recreates the documented Pokémon Pikachu 2 GS *daily activity windows*.
+// This is a behavioral recreation, not firmware emulation. Original randomness,
+// minute-accurate sleep timeout, and GS numeric friendship thresholds are unknown.
+private struct PikaActivity {
+    let keyword: String
+    let fallback: String
+    let title: String
+}
+
+private enum PikaDailyLife {
+    static func activity(at date: Date, friendship: String, steps: Int,
+                         todaySteps: Int) -> PikaActivity {
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: date)
+        // A fresh roll is made when the previous activity ends, not every
+        // frame. Weighted choices imitate the unpredictable check-in feeling.
+        func choose(_ choices: [PikaActivity]) -> PikaActivity {
+            choices.randomElement() ?? PikaActivity(keyword: "Wave", fallback: "idle", title: "HELLO")
+        }
+        func a(_ keyword: String, _ fallback: String) -> PikaActivity {
+            PikaActivity(keyword: keyword, fallback: fallback, title: keyword.uppercased())
+        }
+        if friendship == "STRANGER" { return a("Poké Ball", "friend") }
+        if friendship == "MEANIE" && Int.random(in: 0..<10) < 7 {
+            return a("Pikachu's Back", "friend")
+        }
+        // CUSTOM walking rewards. Rare activities appear during daytime;
+        // their relative chances are modeled rather than GS firmware-accurate.
+        // They do not override bedtime or Pikachu's low-friendship reactions.
+        if hour >= 8 && hour < 20 && friendship != "STRANGER" && friendship != "MEANIE" {
+            let odds: Int
+            if todaySteps >= 20_000 { odds = 18 }
+            else if todaySteps >= 15_000 { odds = 12 }
+            else if todaySteps >= 10_000 || steps >= 150_000 { odds = 8 }
+            else { odds = 0 }
+            if odds > 0 && Int.random(in: 0..<100) < odds {
+                var rareScenes = [a("Writing Name", "play"),
+                                  a("Very Happy Pikachu", "friend"),
+                                  a("Yo-yo", "play")]
+                if todaySteps >= 15_000 { rareScenes.append(a("Hula Hoop", "play")) }
+                if todaySteps >= 20_000 { rareScenes.append(a("Art time", "play")) }
+                if hour >= 18 { rareScenes.append(a("Fireworks", "play")) }
+                if steps >= 1_000_000 { rareScenes.append(a("Very Friendly", "friend")) }
+                return choose(rareScenes)
+            }
+        }
+        switch hour {
+        case 0..<7, 21..<24:
+            return a("Pikachu Sleeps", "sleep")
+        case 7..<8:
+            return choose([a("Mealtime", "meal"), a("Brush Teeth", "bath")])
+        case 8..<12:
+            return choose([a("Yo-yo", "play"), a("Rolling", "walk"), a("Poké Ball TV", "play"),
+                           a("Radio", "play"), a("Hula Hoop", "play"), a("Aerobics", "walk"),
+                           a("Art time", "play"), a("Writing Name", "play")])
+        case 12..<13:
+            return choose([a("Pokémon Food", "meal"), a("Brush Teeth", "bath")])
+        case 13..<15:
+            return choose([a("Heading", "walk"), a("Rolling", "walk"), a("Swing", "play"),
+                           a("Skipping", "walk"), a("Fishing", "play"), a("Hiding", "play"),
+                           a("Hula Hoop", "play"), a("Dig", "play"), a("Pull Ups", "play")])
+        case 15..<16:
+            return choose([a("Eat Apple", "meal"), a("Juice", "meal"), a("Ice Cream", "meal")])
+        case 16..<18:
+            return choose([a("Heading", "walk"), a("Rolling", "walk"), a("Swing", "play"),
+                           a("Skipping", "walk"), a("Fishing", "play"), a("Radio", "play"),
+                           a("Hula Hoop", "play"), a("Digging in Sand", "play"),
+                           a("Pull Ups", "play")])
+        case 18..<19:
+            return choose([a("Mealtime", "meal"), a("Brush Teeth", "bath")])
+        case 19..<20:
+            return choose([a("Sparkler", "play"), a("Night time View", "play"),
+                           a("Fireworks", "play"), a("Radio", "play")])
+        default: // 8 pm–9 pm
+            return a("Bath Time", "bath")
+        }
+    }
+
+    static func greeting(_ roll: Int, friendship: String) -> PikaActivity {
+        func a(_ word: String, _ title: String) -> PikaActivity {
+            PikaActivity(keyword: word, fallback: "idle", title: title)
+        }
+        switch friendship {
+        case "STRANGER": return a("Poké Ball", "PIKACHU IS HIDING")
+        case "MEANIE": return a("Pikachu's Back", "PIKACHU TURNS AWAY")
+        case "BEST PALS":
+            return [a("Wave", "PIKACHU WAVES"), a("Very Happy Pikachu", "HAPPY TO SEE YOU"),
+                    a("Very Friendly", "BEST PALS"), a("Wave", "PIKACHU WAVES")][roll % 4]
+        case "FRIENDS":
+            return [a("Wave", "PIKACHU WAVES"), a("Come Here, Pikachu", "WELCOME BACK"),
+                    a("Greetings", "HELLO AGAIN"), a("Wave", "PIKACHU WAVES")][roll % 4]
+        default:
+            return [a("Greetings", "PIKACHU LOOKS OVER"), a("Pikachu Walks", "PIKACHU WALKS"),
+                    a("Falls Over", "PIKACHU STUMBLES"), a("Greetings", "HELLO PIKACHU")][roll % 4]
+        }
+    }
+
+    static func giftReaction(_ watts: Int) -> PikaActivity {
+        let name: String
+        switch watts {
+        case 0..<100: name = "Pikachu Yawn"
+        case 100..<200: name = "Thanks"
+        case 200..<400: name = "Happy Pikachu"
+        case 400..<500: name = "Wink"
+        default: name = "Thank You"
+        }
+        return PikaActivity(keyword: name, fallback: "gift", title: "A PRESENT FOR PIKACHU")
     }
 }
 
@@ -49,6 +160,20 @@ struct PocketPikaView: View {
     @State private var guessHigher = true
     @State private var showingSetup = false
     @State private var showingOptions = false
+    @State private var lcdSleeping = false
+    @State private var lastButtonPress = Date()
+    @State private var worldClock = Date()
+    @State private var greetingEnds: Date? = nil
+    @State private var greetingNumber = 0
+    @AppStorage("pocket-pika-gs.scene-word") private var storedSceneWord = ""
+    @AppStorage("pocket-pika-gs.scene-fallback") private var storedSceneFallback = "idle"
+    @AppStorage("pocket-pika-gs.scene-expiry") private var storedSceneExpiry = 0.0
+    @AppStorage("pocket-pika-gs.scene-hour") private var storedSceneHour = -1
+    @State private var giftReactionEnds: Date? = nil
+    @State private var milestoneReactionEnds: Date? = nil
+    @State private var milestoneCelebrated: Int = 0
+    @State private var lastGiftWatts = 0
+    @AppStorage("pocket-pika-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
 
     var body: some View {
         GeometryReader { geometry in
@@ -94,12 +219,43 @@ struct PocketPikaView: View {
                 .presentationDetents([.medium, .large])
         }
         .task {
+            store.recordVisit()
             if store.sourceName == "Not connected" { showingSetup = true }
+            chooseActivityIfNeeded()
+            beginGreeting()
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.syncFromSerebii() }
+            await sprites.syncMilestoneAnimations()
+        }
+        .onChange(of: store.latestDailyMilestone) { _, newest in
+            guard let newest, newest >= 10_000 else { return }
+            milestoneCelebrated = newest
+            milestoneReactionEnds = Date().addingTimeInterval(8)
+            worldClock = Date()
+            PocketPikaSound.shared.play(.win)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { Task { await store.refresh() } }
+            if phase == .active {
+                store.recordVisit()
+                lastButtonPress = Date()
+                lcdSleeping = false
+                chooseActivityIfNeeded()
+                beginGreeting()
+                Task { await store.refresh() }
+            }
+        }
+        // A virtual battery-saving LCD timeout. iOS controls actual phone lock.
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 2_000_000_000) }
+                catch { return }
+                worldClock = Date()
+                chooseActivityIfNeeded()
+                if virtualLCDSleep && worldClock.timeIntervalSince(lastButtonPress) >= 75 {
+                    lcdSleeping = true
+                }
+            }
         }
         // Check for new steps once a minute while this scene is active.
         // This task is canceled by SwiftUI when the Duo app leaves the foreground.
@@ -174,13 +330,13 @@ struct PocketPikaView: View {
             .frame(width: 294, height: 130)
 
             HStack(spacing: 35) {
-                ovalButton("SELECT") { feedback(); showPage(.steps) }
-                ovalButton("START") { feedback(); showingOptions = true }
+                ovalButton("SELECT") { if acceptButton() { showPage(.friend) } }
+                ovalButton("START") { if acceptButton() { showingOptions = true } }
             }
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  EASY v0.6")
+            Text("POCKET PIKA GS  ·  YELLOW v0.8.2")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))
@@ -198,6 +354,25 @@ struct PocketPikaView: View {
     }
 
     private var lcdScreen: some View {
+        ZStack {
+            if lcdSleeping {
+                Rectangle().fill(ShellColor.lcdShade.opacity(0.7))
+                    .overlay {
+                        Text("A  TO  WAKE")
+                            .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                            .foregroundStyle(ShellColor.ink.opacity(0.45))
+                    }
+                    .accessibilityLabel("LCD asleep. Press A to wake Pikachu")
+            } else {
+                activeLCDScreen
+            }
+        }
+        .background(ShellColor.lcd)
+        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(ShellColor.lcdShade, lineWidth: 3) }
+        .clipShape(RoundedRectangle(cornerRadius: 5))
+    }
+
+    private var activeLCDScreen: some View {
         VStack(spacing: 0) {
             HStack {
                 Text(page.label)
@@ -224,10 +399,9 @@ struct PocketPikaView: View {
             .clipped()
 
             HStack(spacing: 0) {
-                ForEach(DevicePage.allCases) { item in
+                ForEach([DevicePage.steps, .presents, .cards]) { item in
                     Button {
-                        feedback()
-                        showPage(item)
+                        if acceptButton() { showPage(item) }
                     } label: {
                         Image(systemName: item.symbol)
                             .font(.system(size: 11, weight: .bold))
@@ -245,51 +419,96 @@ struct PocketPikaView: View {
         }
         .foregroundStyle(ShellColor.ink)
         .background(ShellColor.lcd)
-        .overlay { RoundedRectangle(cornerRadius: 5).strokeBorder(ShellColor.lcdShade, lineWidth: 3) }
-        .clipShape(RoundedRectangle(cornerRadius: 5))
     }
 
-    private var sceneSlot: String {
-        switch store.currentScene {
-        case "BREAKFAST": return "meal"
-        case "STROLLING": return "walk"
-        case "PLAYTIME", "DAYDREAMING": return "play"
-        case "BATH TIME": return "bath"
-        case "SLEEPY", "DREAMING": return "sleep"
-        default: return "idle"
+    private var displayedActivity: PikaActivity {
+        if let ends = giftReactionEnds, ends > worldClock {
+            return PikaDailyLife.giftReaction(lastGiftWatts)
         }
+        if let ends = milestoneReactionEnds, ends > worldClock {
+            return PikaActivity(keyword: "Very Happy Pikachu", fallback: "friend",
+                                title: "\(milestoneCelebrated.formatted()) STEPS! AMAZING!")
+        }
+        let hour = Calendar.current.component(.hour, from: worldClock)
+        if let ends = greetingEnds, ends > worldClock, hour >= 7 && hour < 21 {
+            return PikaDailyLife.greeting(greetingNumber, friendship: store.friendshipState)
+        }
+        if !storedSceneWord.isEmpty {
+            return PikaActivity(keyword: storedSceneWord, fallback: storedSceneFallback,
+                                title: storedSceneWord.uppercased())
+        }
+        return PikaDailyLife.activity(at: worldClock, friendship: store.friendshipState,
+                                       steps: store.lifetimeSteps, todaySteps: store.todaySteps)
+    }
+
+    private func chooseActivityIfNeeded() {
+        let now = Date()
+        let hour = Calendar.current.component(.hour, from: now)
+        guard storedSceneWord.isEmpty || storedSceneExpiry <= now.timeIntervalSince1970 || storedSceneHour != hour else { return }
+        let chosen = PikaDailyLife.activity(at: now, friendship: store.friendshipState,
+                                            steps: store.lifetimeSteps, todaySteps: store.todaySteps)
+        storedSceneWord = chosen.keyword
+        storedSceneFallback = chosen.fallback
+        storedSceneHour = hour
+        // Activities persist across app restarts. Between 100-300 seconds is a
+        // fan approximation: the original GS firmware's RNG isn't published.
+        storedSceneExpiry = now.addingTimeInterval(Double(Int.random(in: 100...300))).timeIntervalSince1970
+    }
+
+    private func beginGreeting() {
+        worldClock = Date()
+        greetingNumber = Int.random(in: 0..<100)
+        greetingEnds = Date().addingTimeInterval(6)
+    }
+
+    // Only A wakes the original device's LCD. The other buttons are ignored
+    // while the virtual screen is asleep.
+    private func acceptButton() -> Bool {
+        store.recordVisit()
+        feedback()
+        PocketPikaSound.shared.play(.tap)
+        if lcdSleeping {
+            return false
+        }
+        lastButtonPress = Date()
+        return true
+    }
+
+    private func showGreetingAfterWake() {
+        store.recordVisit()
+        PocketPikaSound.shared.play(.wake)
+        lcdSleeping = false
+        lastButtonPress = Date()
+        page = .companion
+        beginGreeting()
     }
 
     private var companionScreen: some View {
-        VStack(spacing: 5) {
+        let activity = displayedActivity
+        return VStack(spacing: 4) {
             ZStack {
-                if let sprite = sprites.animation(for: sceneSlot) {
+                if let sprite = sprites.animation(named: activity.keyword, fallbackSlot: activity.fallback) {
                     AnimatedPixelSprite(animation: sprite)
+                        .id(activity.keyword)
                         .frame(maxWidth: .infinity, maxHeight: 147)
                         .padding(.horizontal, 8)
                 } else {
-                    VStack(spacing: 6) {
-                        Image(systemName: "photo.artframe")
-                            .font(.system(size: 34, weight: .light))
-                        Text(sprites.isSyncing ? "LOADING ORIGINAL GIFS" : "CONNECT TO GIF GALLERY")
-                            .font(.system(size: 11, weight: .black, design: .monospaced))
-                        Text("START → SETTINGS")
-                            .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    VStack(spacing: 7) {
+                        Image(systemName: "photo.artframe").font(.system(size: 31, weight: .light))
+                        Text(sprites.isSyncing ? "LOADING PIKACHU" : "START → SYNC GIFS")
+                            .font(.system(size: 10, weight: .heavy, design: .monospaced))
                     }
-                    .multilineTextAlignment(.center)
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            Text("←→ SCREENS   ↑↓ ANIMATIONS")
-                .font(.system(size: 8, weight: .medium, design: .monospaced))
-            HStack {
-                Text(sprites.galleryCount > 0 ? sprites.title(for: sceneSlot) : store.currentScene)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.5)
-                Spacer()
-                Label("\(store.watts) W", systemImage: "bolt.fill")
+            HStack(spacing: 4) {
+                Text(activity.title)
+                    .lineLimit(1).minimumScaleFactor(0.6)
+                Spacer(minLength: 1)
+                Text("\(store.watts) W")
             }
             .font(.system(size: 9, weight: .heavy, design: .monospaced))
+            .frame(height: 15)
         }
         .padding(.horizontal, 9)
     }
@@ -334,7 +553,7 @@ struct PocketPikaView: View {
         VStack(spacing: 10) {
             Text("GIVE A PRESENT")
                 .font(.system(size: 13, weight: .black, design: .monospaced))
-            if let sprite = sprites.animation(for: "gift") {
+            if let sprite = sprites.animation(named: PikaDailyLife.giftReaction(max(1, giftAmount)).keyword, fallbackSlot: "gift") {
                 AnimatedPixelSprite(animation: sprite)
                     .frame(height: 90)
             } else {
@@ -383,19 +602,35 @@ struct PocketPikaView: View {
         }
     }
 
+    private var friendshipSpriteName: String {
+        switch store.friendshipState {
+        case "STRANGER": return "Poké Ball"
+        case "MEANIE": return "Grumpy Pikachu"
+        case "PLAYMATES": return "Friendly Pikachu"
+        case "FRIENDS": return "Very Friendly"
+        default: return "Very Happy Pikachu"
+        }
+    }
+
+    private var originalFriendshipLabel: String { store.friendshipState }
+
     private var friendScreen: some View {
         VStack(spacing: 12) {
-            if let sprite = sprites.animation(for: "friend") {
+            if let sprite = sprites.animation(named: friendshipSpriteName, fallbackSlot: "friend") {
                 AnimatedPixelSprite(animation: sprite)
                     .frame(height: 96)
             } else {
                 Image(systemName: "heart.fill").font(.system(size: 40))
             }
-            Text(store.levelName)
+            Text(originalFriendshipLabel)
                 .font(.system(size: 17, weight: .black, design: .monospaced))
-            Text("FRIENDSHIP  \(store.friendship) / 100")
+            Text("FRIENDSHIP STATUS")
                 .font(.system(size: 12, design: .monospaced))
-            Text("A PAT  ·  ↑↓ ANIMATION")
+            Text("CHECK-IN " + (store.checkedInToday ? "✓ TODAY" : "NOT YET"))
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+            Text("CARE: \(min(store.todaySteps, store.minimumDailyCareSteps).formatted()) / 3,000 STEPS")
+                .font(.system(size: 9, design: .monospaced))
+            Text("SELECT = FRIENDSHIP  ·  B = BACK")
                 .font(.system(size: 9, design: .monospaced))
         }
     }
@@ -491,7 +726,7 @@ struct PocketPikaView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(HandheldPressStyle())
-        .accessibilityLabel(title == "SELECT" ? "Select: step stats" : "Start: settings")
+        .accessibilityLabel(title == "SELECT" ? "Select: Pikachu friendship" : "Start: settings")
     }
 
     private func feedback() {
@@ -506,46 +741,53 @@ struct PocketPikaView: View {
     }
 
     private func tapA() {
-        feedback()
+        // A wakes the LCD without also spending Watts or navigating.
+        if lcdSleeping { feedback(); showGreetingAfterWake(); return }
+        guard acceptButton() else { return }
         switch page {
         case .companion:
-            store.patPika()
-            sprites.advance(sceneSlot)
+            beginGreeting() // checking in triggers a greeting, not free friendship
         case .friend:
-            store.patPika()
+            showPage(.companion)
         case .steps:
             Task { await store.refresh() }
         case .presents:
+            guard store.watts >= giftAmount else { return }
             store.giveWatts(giftAmount)
+            PocketPikaSound.shared.play(giftAmount >= 100 ? .bigGift : .gift)
+            lastGiftWatts = giftAmount
+            giftReactionEnds = Date().addingTimeInterval(7)
+            worldClock = Date()
+            showPage(.companion)
         case .cards:
-            if store.currentlyPlaying { store.guess(guessHigher) }
-            else { store.startCardGame() }
+            if store.currentlyPlaying {
+                store.guess(guessHigher)
+                PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
+            } else { store.startCardGame() }
         case .options:
             showingOptions = true
         }
     }
 
     private func tapB() {
-        feedback()
+        guard acceptButton() else { return }
         showPage(.companion)
     }
 
-    // LEFT / RIGHT: ALWAYS change the active screen.
-    // UP / DOWN: ALWAYS change an option or animation on the active screen.
-    // A: confirm the visible choice. B: back to Pikachu.
+    // Four easy destinations, with the original three icons on the LCD.
+    // Up/down only changes choices; Pikachu's activities are now autonomous.
     private func tapDirection(_ direction: Direction) {
-        feedback()
+        guard acceptButton() else { return }
         switch direction {
         case .left, .right:
-            // Settings is a START shortcut rather than an accidental page in the cycle.
-            let pages: [DevicePage] = [.companion, .steps, .presents, .cards, .friend]
+            let pages: [DevicePage] = [.companion, .steps, .presents, .cards]
             let current = pages.firstIndex(of: page) ?? 0
             let offset = direction == .right ? 1 : pages.count - 1
             showPage(pages[(current + offset) % pages.count])
         case .up, .down:
             switch page {
-            case .companion:
-                sprites.advance(sceneSlot, by: direction == .down ? 1 : -1)
+            case .companion, .friend:
+                break // no manual GIF cycling on the living-Pikachu screen
             case .steps:
                 stepsPage = (stepsPage + (direction == .down ? 1 : 2)) % 3
             case .presents:
@@ -554,10 +796,7 @@ struct PocketPikaView: View {
                 let offset = direction == .up ? 1 : gifts.count - 1
                 giftAmount = gifts[(current + offset) % gifts.count]
             case .cards:
-                // Choosing up/down only highlights a prediction. A submits it.
                 guessHigher = direction == .up
-            case .friend:
-                sprites.advance("friend", by: direction == .down ? 1 : -1)
             case .options:
                 showingOptions = true
             }
@@ -580,12 +819,14 @@ struct PocketPikaView: View {
                 statCard("WATTS", store.watts.formatted())
             }
             HStack(spacing: 10) {
-                statCard("FRIEND", "\(store.friendship)%")
+                statCard("FRIEND", store.friendshipState)
                 statCard("SOURCE", store.sourceName)
             }
             Text(store.message)
                 .font(.system(size: 13, design: .rounded))
                 .foregroundStyle(ShellColor.bright)
+            unfoldedMilestones
+            unfoldedFriendshipDiary
             Button { showingOptions = true } label: {
                 Label("Step source & GIF gallery", systemImage: "gearshape.fill")
                     .frame(maxWidth: .infinity)
@@ -593,13 +834,100 @@ struct PocketPikaView: View {
                     .background(ShellColor.caseBright, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(ShellColor.bezel)
             }
-            Text("←→ screens  ·  ↑↓ options / GIFs\nA: confirm  ·  B: back  ·  START: settings  ·  SELECT: steps")
+            Text("←→ screens  ·  ↑↓ choices\nA: confirm / wake  ·  B: back  ·  START: settings  ·  SELECT: friendship")
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(ShellColor.bright.opacity(0.06), in: RoundedRectangle(cornerRadius: 22))
+    }
+
+    // These panels are referenced ONLY from expandedPanel, so they are never
+    // instantiated on the closed Duo cover screen.
+    private var unfoldedMilestones: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Label("DAILY WALKING MILESTONES", systemImage: "figure.walk")
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                Spacer(minLength: 4)
+                Text(store.nextDailyMilestone.map { "NEXT \($0.formatted())" } ?? "ALL REACHED")
+                    .font(.system(size: 10, weight: .medium, design: .monospaced))
+                    .foregroundStyle(ShellColor.bright.opacity(0.72))
+            }
+            HStack(spacing: 5) {
+                ForEach(store.dailyMilestoneTargets, id: \.self) { target in
+                    let reached = store.achievedDailyMilestones.contains(target)
+                    VStack(spacing: 4) {
+                        Image(systemName: reached ? "star.fill" : "star")
+                            .font(.system(size: 12))
+                        Text(target >= 1_000 ? "\(target / 1_000)K" : "\(target)")
+                            .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .foregroundStyle(reached ? ShellColor.bezel : ShellColor.bright)
+                    .padding(.vertical, 10)
+                    .background(reached ? ShellColor.caseBright : ShellColor.caseBright.opacity(0.12),
+                                in: RoundedRectangle(cornerRadius: 9))
+                }
+            }
+            Text("10K+ unlocks occasional special Pikachu activities. Milestones reset daily; Watts still come only from steps.")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(ShellColor.bright.opacity(0.7))
+        }
+        .padding(13)
+        .background(ShellColor.caseBright.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
+    }
+
+    private var unfoldedFriendshipDiary: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            Label("FRIENDSHIP DIARY", systemImage: "book.closed.fill")
+                .font(.system(size: 15, weight: .black, design: .rounded))
+                .foregroundStyle(ShellColor.bright)
+            Text("Only visible when your Duo is open")
+                .font(.system(size: 11, design: .rounded))
+                .foregroundStyle(ShellColor.bright.opacity(0.65))
+            if store.diaryEntries.isEmpty {
+                Text("Check in, go walking or give Pikachu a gift to start the diary.")
+                    .font(.system(size: 12, design: .rounded))
+                    .foregroundStyle(ShellColor.bright.opacity(0.75))
+            } else {
+                ForEach(Array(store.diaryEntries.prefix(12))) { entry in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: entry.icon)
+                            .font(.system(size: 15))
+                            .frame(width: 21)
+                            .foregroundStyle(ShellColor.caseBright)
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(alignment: .firstTextBaseline) {
+                                Text(entry.title)
+                                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                                Spacer(minLength: 4)
+                                if entry.friendshipChange != 0 {
+                                    Text(entry.friendshipChange > 0
+                                         ? "+\(entry.friendshipChange)" : "\(entry.friendshipChange)")
+                                        .font(.system(size: 11, weight: .heavy, design: .monospaced))
+                                        .foregroundStyle(entry.friendshipChange > 0
+                                                         ? ShellColor.caseBright : .orange)
+                                }
+                            }
+                            Text(entry.timestamp, format: .dateTime.month(.abbreviated).day().hour().minute())
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(ShellColor.bright.opacity(0.58))
+                            Text(entry.detail)
+                                .font(.system(size: 12, design: .rounded))
+                                .foregroundStyle(ShellColor.bright.opacity(0.83))
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .foregroundStyle(ShellColor.bright)
+                    }
+                    .padding(.vertical, 8)
+                    Divider().overlay(ShellColor.bright.opacity(0.16))
+                }
+            }
+        }
+        .padding(14)
+        .background(ShellColor.caseBright.opacity(0.08), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func statCard(_ title: String, _ value: String) -> some View {
@@ -710,6 +1038,8 @@ private struct DeviceOptionsSheet: View {
     @State private var selectedSlot = "idle"
     @State private var pickingFile = false
     @State private var showingSource = false
+    @AppStorage("pocket-pika-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
+    @AppStorage("pocket-pika-gs.sound-enabled") private var soundEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -746,8 +1076,16 @@ private struct DeviceOptionsSheet: View {
                     Text("GS artwork is from the linked Serebii gallery, as authorized for this project. The Pokémon character remains owned by its rights holders.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
+                Section("ORIGINAL DEVICE BEHAVIOR") {
+                    Toggle("Device-style sound effects", isOn: $soundEnabled)
+                    Toggle("Virtual LCD sleep (75 seconds)", isOn: $virtualLCDSleep)
+                    Text("Pikachu greets you on opening, then performs activities at their documented original times. The virtual LCD can go dark until you press A, but iOS controls the actual phone display and background execution.")
+                        .font(.footnote)
+                    Text("Five GS friendship states use estimated numeric cutoffs. CUSTOM CARE: under 3,000 steps in a day costs 550 goodwill, and missing that day's app check-in costs 150 more. Only completed days are reviewed. Walking milestones at 3K/5K/10K/15K/20K/25K are custom, with occasional rare activities after 10K; the original GS firmware randomizer is undocumented. Sound effects are synthesized. No alarm, backup export, or IR transfer is included.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
                 Section("CONTROLS") {
-                    Text("LEFT / RIGHT: Change screen. UP / DOWN: Change choice or animation. A: Confirm or interact. B: Bank an active card game and return to Pikachu. SELECT: Step stats. START: Settings. Touch targets are enlarged; button presses give a subtle vibration.")
+                    Text("LEFT / RIGHT: Screens. UP / DOWN: Options. A: Confirm or wake screen. B: Back. SELECT: Friendship. START: Settings. Pikachu follows the original time-of-day routine automatically.")
                         .font(.footnote)
                 }
             }

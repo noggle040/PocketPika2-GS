@@ -61,6 +61,12 @@ final class SpriteLibrary: ObservableObject {
         ("gift", "Giving Watts")
     ]
     private static let pageURL = URL(string: "https://www.serebii.net/virtualpet/pokemonpikachu2/")!
+    // Requested custom milestone scenes. They may be outside the first 45
+    // standard gallery GIFs downloaded by earlier app versions.
+    private static let specialSceneNames = [
+        "Writing Name", "Very Happy Pikachu", "Yo-yo", "Hula Hoop",
+        "Art time", "Fireworks", "Very Friendly"
+    ]
 
     @Published private(set) var imports: [String: PixelAnimation] = [:]
     @Published private(set) var savedNames: [String: String] = [:]
@@ -127,6 +133,24 @@ final class SpriteLibrary: ObservableObject {
         return nil
     }
 
+    // Automatic, clock-based scenes use the original labeled GIF rather than
+    // whichever animation was last manually selected in the Settings gallery.
+    // Exact label matches first; otherwise fall back to the existing slot.
+    func animation(named keyword: String, fallbackSlot: String) -> PixelAnimation? {
+        let normalized = keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let exact = gallery.first { $0.label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalized }
+        let partial = gallery.first { $0.label.lowercased().contains(normalized) }
+        if let entry = exact ?? partial {
+            let url = urlFor(entry)
+            if let cached = cache[url.path] { return cached }
+            if let animation = PixelAnimation(fileURL: url) {
+                cache[url.path] = animation
+                return animation
+            }
+        }
+        return animation(for: fallbackSlot)
+    }
+
     private func urlFor(_ entry: GalleryGIF) -> URL {
         let local = galleryFolder.appendingPathComponent(entry.file)
         if FileManager.default.fileExists(atPath: local.path) { return local }
@@ -188,6 +212,67 @@ final class SpriteLibrary: ObservableObject {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    // On upgrade, fetch only the handful of custom milestone activities that
+    // earlier versions may not have saved. This runs once after the main gallery
+    // is ready, and never blocks the handheld when the network is unavailable.
+    func syncMilestoneAnimations() async {
+        let checkKey = "pocket-pika-gs.milestone-gallery-check.v082"
+        guard !UserDefaults.standard.bool(forKey: checkKey), !isSyncing else { return }
+        let missing = Self.specialSceneNames.filter { name in
+            !gallery.contains { $0.label.localizedCaseInsensitiveContains(name) }
+        }
+        if missing.isEmpty {
+            UserDefaults.standard.set(true, forKey: checkKey)
+            return
+        }
+        isSyncing = true
+        defer { isSyncing = false }
+        do {
+            var request = URLRequest(url: Self.pageURL)
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
+            let (body, result) = try await URLSession.shared.data(for: request)
+            guard (result as? HTTPURLResponse)?.statusCode == 200,
+                  let html = String(data: body, encoding: .utf8) ?? String(data: body, encoding: .isoLatin1) else {
+                return // Retry if internet is available on a future launch.
+            }
+            let candidates = Self.candidates(in: html)
+            var local: [GalleryGIF] = []
+            if let data = try? Data(contentsOf: galleryFolder.appendingPathComponent("manifest.json")) {
+                local = (try? JSONDecoder().decode([GalleryGIF].self, from: data)) ?? []
+            }
+            var seen = Set((local + gallery).map(\.source_url))
+            var additions = 0
+            for (index, name) in missing.enumerated() {
+                guard let candidate = candidates.first(where: {
+                    $0.label.localizedCaseInsensitiveContains(name)
+                }), !seen.contains(candidate.source_url),
+                let url = URL(string: candidate.source_url) else { continue }
+                var gifRequest = URLRequest(url: url)
+                gifRequest.setValue(Self.pageURL.absoluteString, forHTTPHeaderField: "Referer")
+                gifRequest.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
+                do {
+                    let (bytes, response) = try await URLSession.shared.data(for: gifRequest)
+                    guard (response as? HTTPURLResponse)?.statusCode == 200,
+                          bytes.count < 4_000_000,
+                          bytes.starts(with: [71, 73, 70, 56]) else { continue }
+                    let file = "milestone_\(index)_v082.gif"
+                    try bytes.write(to: galleryFolder.appendingPathComponent(file), options: .atomic)
+                    local.append(GalleryGIF(file: file, label: candidate.label,
+                                            slot: candidate.slot, source_url: candidate.source_url))
+                    seen.insert(candidate.source_url)
+                    additions += 1
+                } catch { continue }
+            }
+            if additions > 0 {
+                try JSONEncoder().encode(local).write(
+                    to: galleryFolder.appendingPathComponent("manifest.json"), options: .atomic)
+                reload()
+            }
+            // Successful catalog fetch completes this one-time best-effort sync.
+            UserDefaults.standard.set(true, forKey: checkKey)
+        } catch { /* Original gallery remains usable without internet. */ }
     }
 
     /// Automatically sync original GIF files from the website with permission asserted by the owner.
