@@ -92,7 +92,7 @@ struct PocketPikaView: View {
                 .presentationDetents([.medium, .large])
         }
         .task {
-            if store.sourceName == "Not connected" || (store.sourceName == "Apple Health" && !store.hasHealthKitEntitlement) { showingSetup = true }
+            if store.sourceName == "Not connected" { showingSetup = true }
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.syncFromSerebii() }
         }
@@ -167,7 +167,7 @@ struct PocketPikaView: View {
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  YELLOW v0.5")
+            Text("POCKET PIKA GS  ·  YELLOW v0.5.1")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))
@@ -586,9 +586,9 @@ private struct StepSourceSheet: View {
                     Text(store.connectionStatus)
                         .font(.system(size: 12, design: .rounded))
                         .fixedSize(horizontal: false, vertical: true)
-                    Text(store.hasHealthKitEntitlement ? "HealthKit signing entitlement: found" : "HealthKit signing entitlement: missing. Your sideload signing tool must include this capability; otherwise Apple Health cannot open its permission sheet.")
+                    Text("HealthKit signing access can't be verified in advance on iOS. Tap Connect Apple Health to test it; an error appears above if the sideload signature lacks permission.")
                         .font(.system(size: 11, design: .rounded))
-                        .foregroundStyle(store.hasHealthKitEntitlement ? Color.secondary : Color.orange)
+                        .foregroundStyle(Color.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                 }
 
@@ -618,7 +618,7 @@ private struct DeviceOptionsSheet: View {
             Form {
                 Section("STEP TRACKING") {
                     LabeledContent("Current", value: store.sourceName)
-                    LabeledContent("HealthKit signing", value: store.hasHealthKitEntitlement ? "Available" : "Unavailable")
+                    LabeledContent("HealthKit signing", value: "Test with Connect")
                     Text(store.connectionStatus).font(.footnote)
                     Button("Change step source") { showingSource = true }
                     Button("Refresh now") { Task { await store.refresh() } }

@@ -1,7 +1,6 @@
 import Foundation
 import HealthKit
 import CoreMotion
-import Security
 import SwiftUI
 
 struct DayEntry: Identifiable {
@@ -106,12 +105,8 @@ final class PocketPikaStore: ObservableObject {
         else if game.source == "motion" { await syncMotion() }
     }
 
-    // Check the entitlement in the *installed, signed app*, not just the source plist.
-    // Unsigned GitHub builds rely on a sideload signing profile to grant it.
-    var hasHealthKitEntitlement: Bool {
-        guard let task = SecTaskCreateFromSelf(kCFAllocatorDefault) else { return false }
-        return (SecTaskCopyValueForEntitlement(task, "com.apple.developer.healthkit" as CFString, nil) as? Bool) == true
-    }
+    // iOS does not expose a public SecTask entitlement preflight to apps.
+    // Ask HealthKit directly; it will report a capability/signing error if unavailable.
 
     func enableHealth() {
         guard !isRequestingHealth else { return }
@@ -121,19 +116,14 @@ final class PocketPikaStore: ObservableObject {
             message = connectionStatus
             return
         }
-        guard hasHealthKitEntitlement else {
-            connectionStatus = "The installed app was signed without the HealthKit entitlement. Apple Health cannot show its permission prompt. You can use iPhone Motion now, or re-sign with a profile that supports HealthKit."
-            message = connectionStatus
-            return
-        }
         isRequestingHealth = true
-        connectionStatus = "Requesting step-count access from Apple Health…"
+        connectionStatus = "Requesting step-count access from Apple Health. If no prompt appears, Health may have been previously configured, or your signing profile may lack HealthKit."
         health.requestAuthorization(toShare: [], read: [steps]) { [weak self] completed, error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
                 self.isRequestingHealth = false
                 if let error {
-                    self.connectionStatus = "HealthKit returned: \(error.localizedDescription). Try iPhone Motion or check your signing profile."
+                    self.connectionStatus = "Apple Health request failed: \(error.localizedDescription) [code \((error as NSError).code)]. The sideload signature may lack HealthKit; iPhone Motion can work without it."
                     self.message = self.connectionStatus
                     return
                 }
