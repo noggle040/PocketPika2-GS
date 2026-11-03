@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 
 private enum ShellColor {
@@ -45,6 +46,7 @@ struct PocketPikaView: View {
     @State private var page: DevicePage = .companion
     @State private var giftAmount = 10
     @State private var stepsPage = 0
+    @State private var guessHigher = true
     @State private var showingSetup = false
     @State private var showingOptions = false
 
@@ -99,6 +101,17 @@ struct PocketPikaView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await store.refresh() } }
         }
+        // Check for new steps once a minute while this scene is active.
+        // This task is canceled by SwiftUI when the Duo app leaves the foreground.
+        .task(id: scenePhase) {
+            guard scenePhase == .active else { return }
+            while !Task.isCancelled {
+                do { try await Task.sleep(nanoseconds: 60_000_000_000) }
+                catch { break }
+                guard !Task.isCancelled else { break }
+                await store.refresh()
+            }
+        }
     }
 
     // One 320 x 470 virtual handheld. On the Duo's closed cover display,
@@ -141,7 +154,7 @@ struct PocketPikaView: View {
 
             HStack(alignment: .center, spacing: 0) {
                 dpad
-                    .frame(width: 118, alignment: .leading)
+                    .frame(width: 124, alignment: .leading)
                 VStack(spacing: 5) {
                     Image(systemName: "bolt.fill")
                         .font(.system(size: 36, weight: .black))
@@ -161,13 +174,13 @@ struct PocketPikaView: View {
             .frame(width: 294, height: 130)
 
             HStack(spacing: 35) {
-                ovalButton("SELECT") { page = .friend }
-                ovalButton("START") { showingOptions = true }
+                ovalButton("SELECT") { feedback(); showPage(.steps) }
+                ovalButton("START") { feedback(); showingOptions = true }
             }
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  YELLOW v0.5.2")
+            Text("POCKET PIKA GS  ·  EASY v0.6")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))
@@ -213,8 +226,8 @@ struct PocketPikaView: View {
             HStack(spacing: 0) {
                 ForEach(DevicePage.allCases) { item in
                     Button {
-                        page = item
-                        if item == .options { showingOptions = true }
+                        feedback()
+                        showPage(item)
                     } label: {
                         Image(systemName: item.symbol)
                             .font(.system(size: 11, weight: .bold))
@@ -267,6 +280,8 @@ struct PocketPikaView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text("←→ SCREENS   ↑↓ ANIMATIONS")
+                .font(.system(size: 8, weight: .medium, design: .monospaced))
             HStack {
                 Text(sprites.galleryCount > 0 ? sprites.title(for: sceneSlot) : store.currentScene)
                     .lineLimit(1)
@@ -310,7 +325,7 @@ struct PocketPikaView: View {
                 Text("TOTAL STEPS")
                     .font(.system(size: 11, design: .monospaced))
             }
-            Text("← / →  CHANGE VIEW")
+            Text("↑/↓ VIEWS   A REFRESH")
                 .font(.system(size: 8, design: .monospaced))
         }
     }
@@ -327,21 +342,44 @@ struct PocketPikaView: View {
             }
             Text("\(giftAmount) W")
                 .font(.system(size: 29, weight: .black, design: .monospaced))
-            Text("↑ / ↓  AMOUNT    A = GIVE")
+            Text("↑ MORE  ↓ LESS   A GIVE")
                 .font(.system(size: 9, design: .monospaced))
         }
     }
 
     private var cardScreen: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             Text("HIGHER OR LOWER")
-                .font(.system(size: 12, weight: .black, design: .monospaced))
+                .font(.system(size: 11, weight: .black, design: .monospaced))
             Text(store.currentlyPlaying ? String(store.currentCard) : "?")
-                .font(.system(size: 54, weight: .black, design: .monospaced))
-            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) W" : "A = BET 5 W")
-                .font(.system(size: 12, weight: .bold, design: .monospaced))
-            Text(store.currentlyPlaying ? "↑ HIGHER   ↓ LOWER   B BANK" : "Guesses cost 5 Watts")
-                .font(.system(size: 9, design: .monospaced))
+                .font(.system(size: 37, weight: .black, design: .monospaced))
+            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) W" : "A = START (5 W)")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+
+            if store.currentlyPlaying {
+                HStack(spacing: 8) {
+                    Text("↑ HIGHER")
+                        .foregroundStyle(guessHigher ? ShellColor.lcd : ShellColor.ink)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(guessHigher ? ShellColor.ink : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                    Text("↓ LOWER")
+                        .foregroundStyle(!guessHigher ? ShellColor.lcd : ShellColor.ink)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(!guessHigher ? ShellColor.ink : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                }
+                .font(.system(size: 9, weight: .heavy, design: .monospaced))
+                Text("A GUESS   B BANK & EXIT")
+                    .font(.system(size: 8, design: .monospaced))
+            }
+            if !store.lastCardResult.isEmpty {
+                Text(store.lastCardResult)
+                    .font(.system(size: 8, design: .monospaced))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+                    .frame(maxWidth: 236)
+            }
         }
     }
 
@@ -357,8 +395,8 @@ struct PocketPikaView: View {
                 .font(.system(size: 17, weight: .black, design: .monospaced))
             Text("FRIENDSHIP  \(store.friendship) / 100")
                 .font(.system(size: 12, design: .monospaced))
-            Text("A = PAT")
-                .font(.system(size: 10, design: .monospaced))
+            Text("A PAT  ·  ↑↓ ANIMATION")
+                .font(.system(size: 9, design: .monospaced))
         }
     }
 
@@ -374,36 +412,55 @@ struct PocketPikaView: View {
         }
     }
 
+    // One 3×3 hit grid: four distinct 41-point targets with no overlap.
+    // This is easier to tap than four tiny, partially overlapping arrows.
     private var dpad: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 6)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(ShellColor.bezel)
-                .frame(width: 111, height: 37)
-            RoundedRectangle(cornerRadius: 6)
+                .frame(width: 121, height: 42)
+            RoundedRectangle(cornerRadius: 7)
                 .fill(ShellColor.bezel)
-                .frame(width: 37, height: 111)
-            Circle().fill(ShellColor.caseDark)
-                .frame(width: 26, height: 26)
-            arrow("chevron.up", x: 0, y: -37) { tapDirection(.up) }
-            arrow("chevron.down", x: 0, y: 37) { tapDirection(.down) }
-            arrow("chevron.left", x: -37, y: 0) { tapDirection(.left) }
-            arrow("chevron.right", x: 37, y: 0) { tapDirection(.right) }
+                .frame(width: 42, height: 121)
+            VStack(spacing: 0) {
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: 41, height: 41)
+                    dpadButton("chevron.up", .up)
+                    Color.clear.frame(width: 41, height: 41)
+                }
+                HStack(spacing: 0) {
+                    dpadButton("chevron.left", .left)
+                    Circle().fill(ShellColor.caseDark)
+                        .frame(width: 28, height: 28)
+                        .frame(width: 41, height: 41)
+                    dpadButton("chevron.right", .right)
+                }
+                HStack(spacing: 0) {
+                    Color.clear.frame(width: 41, height: 41)
+                    dpadButton("chevron.down", .down)
+                    Color.clear.frame(width: 41, height: 41)
+                }
+            }
         }
-        .frame(width: 112, height: 112)
+        .frame(width: 123, height: 123)
     }
 
     private enum Direction { case up, down, left, right }
 
-    private func arrow(_ icon: String, x: CGFloat, y: CGFloat, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .heavy))
+    private func dpadButton(_ symbol: String, _ direction: Direction) -> some View {
+        Button {
+            tapDirection(direction)
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 14, weight: .heavy))
                 .foregroundStyle(ShellColor.caseBright)
-                .frame(width: 35, height: 35)
+                .frame(width: 41, height: 41)
                 .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .offset(x: x, y: y)
+        .buttonStyle(HandheldPressStyle())
+        .accessibilityLabel(direction == .up ? "Up: change choice" :
+                            direction == .down ? "Down: change choice" :
+                            direction == .left ? "Previous screen" : "Next screen")
     }
 
     private func circleButton(_ title: String, size: CGFloat, action: @escaping () -> Void) -> some View {
@@ -414,8 +471,11 @@ struct PocketPikaView: View {
                 .frame(width: size, height: size)
                 .background(ShellColor.bezel, in: Circle())
                 .overlay(Circle().strokeBorder(.white.opacity(0.12), lineWidth: 2))
+                .frame(width: max(48, size), height: max(48, size))
+                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HandheldPressStyle())
+        .accessibilityLabel(title == "A" ? "A: confirm" : "B: back")
     }
 
     private func ovalButton(_ title: String, action: @escaping () -> Void) -> some View {
@@ -427,51 +487,81 @@ struct PocketPikaView: View {
                     .font(.system(size: 8, weight: .heavy, design: .monospaced))
                     .foregroundStyle(ShellColor.bezel)
             }
+            .frame(width: 72, height: 42)
+            .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(HandheldPressStyle())
+        .accessibilityLabel(title == "SELECT" ? "Select: step stats" : "Start: settings")
+    }
+
+    private func feedback() {
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+    }
+
+    // Always bank a live card-game pot when leaving the screen.
+    private func showPage(_ next: DevicePage) {
+        if page == .cards && next != .cards { store.leaveCardGame() }
+        page = next
+        if next == .options { showingOptions = true }
     }
 
     private func tapA() {
+        feedback()
         switch page {
         case .companion:
             store.patPika()
             sprites.advance(sceneSlot)
-        case .friend: store.patPika()
-        case .steps: Task { await store.refresh() }
-        case .presents: store.giveWatts(giftAmount)
-        case .cards: if !store.currentlyPlaying { store.startCardGame() } else { store.bankWin() }
-        case .options: showingOptions = true
+        case .friend:
+            store.patPika()
+        case .steps:
+            Task { await store.refresh() }
+        case .presents:
+            store.giveWatts(giftAmount)
+        case .cards:
+            if store.currentlyPlaying { store.guess(guessHigher) }
+            else { store.startCardGame() }
+        case .options:
+            showingOptions = true
         }
     }
 
     private func tapB() {
-        if page == .cards && store.currentlyPlaying { store.bankWin() }
-        else { page = .companion }
+        feedback()
+        showPage(.companion)
     }
 
+    // LEFT / RIGHT: ALWAYS change the active screen.
+    // UP / DOWN: ALWAYS change an option or animation on the active screen.
+    // A: confirm the visible choice. B: back to Pikachu.
     private func tapDirection(_ direction: Direction) {
-        if page == .companion && (direction == .up || direction == .down) {
-            sprites.advance(sceneSlot, by: direction == .up ? 1 : -1)
-            return
+        feedback()
+        switch direction {
+        case .left, .right:
+            // Settings is a START shortcut rather than an accidental page in the cycle.
+            let pages: [DevicePage] = [.companion, .steps, .presents, .cards, .friend]
+            let current = pages.firstIndex(of: page) ?? 0
+            let offset = direction == .right ? 1 : pages.count - 1
+            showPage(pages[(current + offset) % pages.count])
+        case .up, .down:
+            switch page {
+            case .companion:
+                sprites.advance(sceneSlot, by: direction == .down ? 1 : -1)
+            case .steps:
+                stepsPage = (stepsPage + (direction == .down ? 1 : 2)) % 3
+            case .presents:
+                let gifts = [10, 25, 50, 100, 200, 500]
+                let current = gifts.firstIndex(of: giftAmount) ?? 0
+                let offset = direction == .up ? 1 : gifts.count - 1
+                giftAmount = gifts[(current + offset) % gifts.count]
+            case .cards:
+                // Choosing up/down only highlights a prediction. A submits it.
+                guessHigher = direction == .up
+            case .friend:
+                sprites.advance("friend", by: direction == .down ? 1 : -1)
+            case .options:
+                showingOptions = true
+            }
         }
-        if page == .cards && store.currentlyPlaying {
-            if direction == .up { store.guess(true) }
-            if direction == .down { store.guess(false) }
-            return
-        }
-        if page == .presents && (direction == .up || direction == .down) {
-            let gifts = [10, 25, 50, 100, 200, 500]
-            let currentIndex = gifts.firstIndex(of: giftAmount) ?? 0
-            giftAmount = gifts[min(gifts.count - 1, max(0, currentIndex + (direction == .up ? 1 : -1)))]
-            return
-        }
-        if page == .steps && (direction == .left || direction == .right) {
-            stepsPage = (stepsPage + (direction == .right ? 1 : 2)) % 3
-            return
-        }
-        let pages = DevicePage.allCases
-        page = pages[(page.rawValue + ((direction == .right || direction == .down) ? 1 : pages.count - 1)) % pages.count]
-        if page == .options { showingOptions = true }
     }
 
     private var expandedPanel: some View {
@@ -503,7 +593,7 @@ struct PocketPikaView: View {
                     .background(ShellColor.caseBright, in: RoundedRectangle(cornerRadius: 12))
                     .foregroundStyle(ShellColor.bezel)
             }
-            Text("D-PAD: Navigate  ·  ↑↓ on Pika: change GIF\nA: Pat/Select  ·  B: Back  ·  START: Settings")
+            Text("←→ screens  ·  ↑↓ options / GIFs\nA: confirm  ·  B: back  ·  START: settings  ·  SELECT: steps")
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
         }
@@ -521,6 +611,14 @@ struct PocketPikaView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(14)
         .background(ShellColor.caseBright.opacity(0.11), in: RoundedRectangle(cornerRadius: 12))
+    }
+}
+
+private struct HandheldPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.94 : 1.0)
+            .opacity(configuration.isPressed ? 0.68 : 1.0)
     }
 }
 
@@ -649,7 +747,7 @@ private struct DeviceOptionsSheet: View {
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("CONTROLS") {
-                    Text("D-Pad selects menus, A confirms, B goes back, START opens this screen, and SELECT shows friendship.")
+                    Text("LEFT / RIGHT: Change screen. UP / DOWN: Change choice or animation. A: Confirm or interact. B: Bank an active card game and return to Pikachu. SELECT: Step stats. START: Settings. Touch targets are enlarged; button presses give a subtle vibration.")
                         .font(.footnote)
                 }
             }
