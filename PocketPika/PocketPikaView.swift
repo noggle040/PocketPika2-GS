@@ -161,6 +161,7 @@ struct PocketPikaView: View {
     @State private var showingSetup = false
     @State private var showingOptions = false
     @State private var showingBreakdown = false
+    @State private var showingCardGame = false
     @State private var lcdSleeping = false
     @State private var lastButtonPress = Date()
     @State private var worldClock = Date()
@@ -247,6 +248,13 @@ struct PocketPikaView: View {
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
             .presentationBackground(ShellColor.back)
+        }
+        .fullScreenCover(isPresented: $showingCardGame) {
+            FullScreenCardGameView(store: store, sprites: sprites) {
+                showingCardGame = false
+                page = .companion
+            }
+            .ignoresSafeArea()
         }
         .task {
             store.recordVisit()
@@ -815,6 +823,7 @@ struct PocketPikaView: View {
     private func showPage(_ next: DevicePage) {
         if page == .cards && next != .cards { store.leaveCardGame() }
         page = next
+        if next == .cards { showingCardGame = true }
         if next == .options { showingOptions = true }
     }
 
@@ -1143,6 +1152,272 @@ private struct BirthdayCelebrationOverlay: View {
     }
 }
 
+private struct FullScreenCardGameView: View {
+    @ObservedObject var store: PocketPikaStore
+    @ObservedObject var sprites: SpriteLibrary
+    let onClose: () -> Void
+
+    @State private var reactionName = ""
+    @State private var reactionID = UUID()
+    @State private var reactionForPlayerWin = false
+    @State private var higherChoice = true
+
+    private let playerWinReactions = ["Marill Card Flop", "Grumpy Marill", "Game loss"]
+    private let marillWinReactions = ["Happy Marill", "Very Happy Marill", "Game win"]
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.02, green: 0.08, blue: 0.20),
+                                        Color(red: 0.03, green: 0.28, blue: 0.55),
+                                        Color(red: 0.02, green: 0.08, blue: 0.20)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                VStack(spacing: 18) {
+                    HStack {
+                        Button(action: closeGame) {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 30))
+                                .foregroundStyle(.white.opacity(0.82))
+                        }
+                        .accessibilityLabel("Close card game")
+                        Spacer()
+                        Text("POCKET MARRIL")
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .tracking(1.2)
+                            .foregroundStyle(.white.opacity(0.88))
+                        Spacer()
+                        Image(systemName: "suit.spade.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(Color(red: 0.49, green: 0.79, blue: 1))
+                            .frame(width: 34)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.top, 18)
+
+                    VStack(spacing: 6) {
+                        Text("HIGHER OR LOWER")
+                            .font(.system(size: 15, weight: .black, design: .monospaced))
+                            .tracking(2)
+                            .foregroundStyle(.white.opacity(0.9))
+                        Text(store.currentlyPlaying ? "GUESS THE NEXT CARD" : "PLAY AGAINST MARILL")
+                            .font(.system(size: 10, weight: .bold, design: .monospaced))
+                            .foregroundStyle(Color(red: 0.64, green: 0.83, blue: 1))
+                    }
+
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 24)
+                            .fill(LinearGradient(colors: [.white, Color(red: 0.81, green: 0.92, blue: 1)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.65), lineWidth: 3))
+                            .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 12)
+                        VStack(spacing: 10) {
+                            HStack {
+                                Text(store.currentlyPlaying ? cardRank(store.currentCard) : "?")
+                                    .font(.system(size: 46, weight: .black, design: .rounded))
+                                Spacer()
+                                Image(systemName: "suit.spade.fill")
+                                    .font(.system(size: 27, weight: .black))
+                            }
+                            Spacer()
+                            Image(systemName: "suit.spade.fill")
+                                .font(.system(size: 76, weight: .black))
+                            Spacer()
+                            HStack {
+                                Text(store.currentlyPlaying ? cardRank(store.currentCard) : "?")
+                                Spacer()
+                                Image(systemName: "suit.spade.fill")
+                            }
+                            .rotationEffect(.degrees(180))
+                            .font(.system(size: 23, weight: .black, design: .rounded))
+                        }
+                        .foregroundStyle(Color(red: 0.08, green: 0.24, blue: 0.44))
+                        .padding(25)
+                    }
+                    .frame(width: min(geometry.size.width * 0.63, 270), height: min(geometry.size.height * 0.30, 285))
+
+                    VStack(spacing: 5) {
+                        Text(store.currentlyPlaying ? "POT  ·  \(store.pendingWin) ICE CUBES" : "5 ICE CUBES TO PLAY")
+                            .font(.system(size: 13, weight: .black, design: .monospaced))
+                            .foregroundStyle(.white)
+                        if store.currentlyPlaying {
+                            Text("STREAK  \(store.streak)")
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                                .foregroundStyle(Color(red: 0.64, green: 0.83, blue: 1))
+                        }
+                        if !store.lastCardResult.isEmpty {
+                            Text(store.lastCardResult)
+                                .font(.system(size: 12, weight: .medium, design: .rounded))
+                                .foregroundStyle(.white.opacity(0.8))
+                                .multilineTextAlignment(.center)
+                                .lineLimit(2)
+                                .frame(maxWidth: 340)
+                        }
+                    }
+
+                    if store.currentlyPlaying {
+                        HStack(spacing: 14) {
+                            choiceButton("LOWER", symbol: "arrow.down", color: Color(red: 0.22, green: 0.60, blue: 0.92)) {
+                                store.guess(false)
+                                PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
+                            }
+                            choiceButton("HIGHER", symbol: "arrow.up", color: Color(red: 0.10, green: 0.43, blue: 0.78)) {
+                                store.guess(true)
+                                PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
+                            }
+                        }
+                        Button(action: { store.bankWin(); PocketPikaSound.shared.play(.gift) }) {
+                            Label("BANK \(store.pendingWin) ICE CUBES", systemImage: "tray.and.arrow.down.fill")
+                                .font(.system(size: 13, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .background(.white.opacity(0.13), in: RoundedRectangle(cornerRadius: 16))
+                                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.24)))
+                                .foregroundStyle(.white)
+                        }
+                        .padding(.horizontal, 30)
+                    } else {
+                        Button {
+                            store.startCardGame()
+                            PocketPikaSound.shared.play(.tap)
+                        } label: {
+                            Label("START GAME  ·  5 ICE CUBES", systemImage: "play.fill")
+                                .font(.system(size: 16, weight: .black, design: .rounded))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 19)
+                                .background(Color(red: 0.20, green: 0.67, blue: 1), in: RoundedRectangle(cornerRadius: 18))
+                                .foregroundStyle(Color(red: 0.02, green: 0.12, blue: 0.26))
+                        }
+                        .padding(.horizontal, 30)
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .padding(.bottom, 24)
+
+                if !reactionName.isEmpty {
+                    CardGameReactionOverlay(
+                        sprites: sprites,
+                        animationName: reactionName,
+                        playerWon: reactionForPlayerWin,
+                        onTap: dismissReaction
+                    )
+                    .transition(.opacity)
+                    .zIndex(10)
+                }
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .overlay(alignment: .bottom) {
+                if let marill = sprites.animation(named: "Greetings", fallbackSlot: "idle"), reactionName.isEmpty {
+                    AnimatedPixelSprite(animation: marill)
+                        .frame(width: 106, height: 96)
+                        .frame(maxWidth: .infinity)
+                        .offset(y: 15)
+                        .allowsHitTesting(false)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+        .statusBarHidden()
+        .onChange(of: store.lastCardResult) { _, result in
+            if result.contains("Correct!") {
+                showReaction(playerWon: true)
+            } else if result.contains("Miss!") {
+                showReaction(playerWon: false)
+            }
+        }
+        .task(id: reactionID) {
+            guard !reactionName.isEmpty else { return }
+            do { try await Task.sleep(for: .seconds(3.2)) } catch { return }
+            guard !Task.isCancelled else { return }
+            dismissReaction()
+        }
+    }
+
+    private func cardRank(_ value: Int) -> String {
+        switch value {
+        case 11: return "J"
+        case 12: return "Q"
+        case 13: return "K"
+        case 14: return "A"
+        default: return String(value)
+        }
+    }
+
+    private func choiceButton(_ title: String, symbol: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Label(title, systemImage: symbol)
+                .font(.system(size: 16, weight: .black, design: .rounded))
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 19)
+                .background(color, in: RoundedRectangle(cornerRadius: 18))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 7)
+        }
+    }
+
+    private func showReaction(playerWon: Bool) {
+        let choices = playerWon ? playerWinReactions : marillWinReactions
+        reactionName = choices.randomElement() ?? (playerWon ? "Grumpy Marill" : "Happy Marill")
+        reactionForPlayerWin = playerWon
+        reactionID = UUID()
+    }
+
+    private func dismissReaction() {
+        withAnimation(.easeOut(duration: 0.25)) { reactionName = "" }
+    }
+
+    private func closeGame() {
+        store.leaveCardGame()
+        onClose()
+    }
+}
+
+private struct CardGameReactionOverlay: View {
+    @ObservedObject var sprites: SpriteLibrary
+    let animationName: String
+    let playerWon: Bool
+    let onTap: () -> Void
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                LinearGradient(colors: [Color(red: 0.01, green: 0.05, blue: 0.15),
+                                        Color(red: 0.03, green: 0.30, blue: 0.62),
+                                        Color(red: 0.01, green: 0.05, blue: 0.15)],
+                               startPoint: .top, endPoint: .bottom)
+                VStack(spacing: 22) {
+                    Text(playerWon ? "YOU WIN THIS ROUND" : "MARILL WINS THIS ROUND")
+                        .font(.system(size: 18, weight: .black, design: .rounded))
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 24)
+                    if let animation = sprites.animation(named: animationName, fallbackSlot: "play") {
+                        AnimatedPixelSprite(animation: animation)
+                            .frame(width: min(geometry.size.width * 0.9, 390), height: min(geometry.size.height * 0.52, 370))
+                            .clipShape(RoundedRectangle(cornerRadius: 18))
+                    } else {
+                        ProgressView().tint(.white).scaleEffect(1.8)
+                    }
+                    Text(animationName.uppercased())
+                        .font(.system(size: 14, weight: .black, design: .monospaced))
+                        .tracking(1)
+                        .foregroundStyle(Color(red: 0.75, green: 0.88, blue: 1))
+                    Text("TAP TO CONTINUE")
+                        .font(.system(size: 10, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(.vertical, 40)
+            }
+            .contentShape(Rectangle())
+            .onTapGesture(perform: onTap)
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .ignoresSafeArea()
+        .accessibilityLabel(playerWon ? "Marill reacts to your win" : "Marill celebrates winning")
+    }
+}
+
 private struct DeviceOptionsSheet: View {
     @ObservedObject var store: PocketPikaStore
     @ObservedObject var sprites: SpriteLibrary
@@ -1242,6 +1517,7 @@ private struct DeviceOptionsSheet: View {
         }
     }
 }
+
 
 
 
