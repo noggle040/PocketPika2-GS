@@ -1,0 +1,290 @@
+[
+  {
+    "file": "1-01-greetings.gif",
+    "label": "Greetings",
+    "slot": "idle",
+    "source_url": "bundled:1-01-greetings.gif"
+  },
+  {
+    "file": "1-02-wave.gif",
+    "label": "Wave",
+    "slot": "idle",
+    "source_url": "bundled:1-02-wave.gif"
+  },
+  {
+    "file": "1-03-come-here.gif",
+    "label": "Come Here, Marill",
+    "slot": "idle",
+    "source_url": "bundled:1-03-come-here.gif"
+  },
+  {
+    "file": "1-04-walking.gif",
+    "label": "Marill Walks",
+    "slot": "walk",
+    "source_url": "bundled:1-04-walking.gif"
+  },
+  {
+    "file": "1-05-falls-over.gif",
+    "label": "Falls over",
+    "slot": "idle",
+    "source_url": "bundled:1-05-falls-over.gif"
+  },
+  {
+    "file": "1-06-hiding.gif",
+    "label": "Pok\u00e9 Ball",
+    "slot": "friend",
+    "source_url": "bundled:1-06-hiding.gif"
+  },
+  {
+    "file": "1-07-turns-away.gif",
+    "label": "Marill's Back",
+    "slot": "friend",
+    "source_url": "bundled:1-07-turns-away.gif"
+  },
+  {
+    "file": "1-08-grumpy.gif",
+    "label": "Grumpy Marill",
+    "slot": "friend",
+    "source_url": "bundled:1-08-grumpy.gif"
+  },
+  {
+    "file": "1-09-friendly.gif",
+    "label": "Friendly Marill",
+    "slot": "friend",
+    "source_url": "bundled:1-09-friendly.gif"
+  },
+  {
+    "file": "1-10-very-friendly.gif",
+    "label": "Very Friendly",
+    "slot": "friend",
+    "source_url": "bundled:1-10-very-friendly.gif"
+  },
+  {
+    "file": "1-11-happy.gif",
+    "label": "Happy Marill",
+    "slot": "friend",
+    "source_url": "bundled:1-11-happy.gif"
+  },
+  {
+    "file": "1-12-very-happy.gif",
+    "label": "Very Happy Marill",
+    "slot": "friend",
+    "source_url": "bundled:1-12-very-happy.gif"
+  },
+  {
+    "file": "1-13-yawn.gif",
+    "label": "Marill Yawn",
+    "slot": "gift",
+    "source_url": "bundled:1-13-yawn.gif"
+  },
+  {
+    "file": "1-14-sleep.gif",
+    "label": "Marill Sleeps",
+    "slot": "sleep",
+    "source_url": "bundled:1-14-sleep.gif"
+  },
+  {
+    "file": "1-15-wink.gif",
+    "label": "Wink",
+    "slot": "gift",
+    "source_url": "bundled:1-15-wink.gif"
+  },
+  {
+    "file": "1-16-ice-water-gift.gif",
+    "label": "Ice Water gift",
+    "slot": "gift",
+    "source_url": "bundled:1-16-ice-water-gift.gif"
+  },
+  {
+    "file": "2-01-mealtime.gif",
+    "label": "Mealtime",
+    "slot": "meal",
+    "source_url": "bundled:2-01-mealtime.gif"
+  },
+  {
+    "file": "2-02-pokemon-food.gif",
+    "label": "Pok\u00e9mon Food",
+    "slot": "meal",
+    "source_url": "bundled:2-02-pokemon-food.gif"
+  },
+  {
+    "file": "2-03-eat-apple.gif",
+    "label": "Eat apple",
+    "slot": "meal",
+    "source_url": "bundled:2-03-eat-apple.gif"
+  },
+  {
+    "file": "2-04-juice.gif",
+    "label": "Juice",
+    "slot": "meal",
+    "source_url": "bundled:2-04-juice.gif"
+  },
+  {
+    "file": "2-05-ice-cream.gif",
+    "label": "Ice cream",
+    "slot": "meal",
+    "source_url": "bundled:2-05-ice-cream.gif"
+  },
+  {
+    "file": "2-06-brush-teeth.gif",
+    "label": "Brush teeth",
+    "slot": "bath",
+    "source_url": "bundled:2-06-brush-teeth.gif"
+  },
+  {
+    "file": "2-07-bath-time.gif",
+    "label": "Bath time",
+    "slot": "bath",
+    "source_url": "bundled:2-07-bath-time.gif"
+  },
+  {
+    "file": "2-08-yo-yo.gif",
+    "label": "Yo-yo",
+    "slot": "play",
+    "source_url": "bundled:2-08-yo-yo.gif"
+  },
+  {
+    "file": "2-09-heading.gif",
+    "label": "Heading",
+    "slot": "walk",
+    "source_url": "bundled:2-09-heading.gif"
+  },
+  {
+    "file": "2-10-rolling.gif",
+    "label": "Rolling",
+    "slot": "walk",
+    "source_url": "bundled:2-10-rolling.gif"
+  },
+  {
+    "file": "2-11-poke-ball-tv.gif",
+    "label": "Pok\u00e9 Ball TV",
+    "slot": "play",
+    "source_url": "bundled:2-11-poke-ball-tv.gif"
+  },
+  {
+    "file": "2-12-radio.gif",
+    "label": "Radio",
+    "slot": "play",
+    "source_url": "bundled:2-12-radio.gif"
+  },
+  {
+    "file": "2-13-swing.gif",
+    "label": "Swing",
+    "slot": "play",
+    "source_url": "bundled:2-13-swing.gif"
+  },
+  {
+    "file": "2-14-skipping.gif",
+    "label": "Skipping",
+    "slot": "walk",
+    "source_url": "bundled:2-14-skipping.gif"
+  },
+  {
+    "file": "2-15-fishing.gif",
+    "label": "Fishing",
+    "slot": "play",
+    "source_url": "bundled:2-15-fishing.gif"
+  },
+  {
+    "file": "2-16-hide-and-seek.gif",
+    "label": "Hiding",
+    "slot": "play",
+    "source_url": "bundled:2-16-hide-and-seek.gif"
+  },
+  {
+    "file": "3-01-aerobics.gif",
+    "label": "Aerobics",
+    "slot": "walk",
+    "source_url": "bundled:3-01-aerobics.gif"
+  },
+  {
+    "file": "3-02-hula-hoop.gif",
+    "label": "Hula hoop",
+    "slot": "walk",
+    "source_url": "bundled:3-02-hula-hoop.gif"
+  },
+  {
+    "file": "3-03-art-time.gif",
+    "label": "Art time",
+    "slot": "play",
+    "source_url": "bundled:3-03-art-time.gif"
+  },
+  {
+    "file": "3-04-writing-name.gif",
+    "label": "Writing name",
+    "slot": "play",
+    "source_url": "bundled:3-04-writing-name.gif"
+  },
+  {
+    "file": "3-05-fireworks.gif",
+    "label": "Fireworks",
+    "slot": "play",
+    "source_url": "bundled:3-05-fireworks.gif"
+  },
+  {
+    "file": "3-06-night-view.gif",
+    "label": "Night time View",
+    "slot": "play",
+    "source_url": "bundled:3-06-night-view.gif"
+  },
+  {
+    "file": "3-07-sparkler.gif",
+    "label": "Sparkler",
+    "slot": "play",
+    "source_url": "bundled:3-07-sparkler.gif"
+  },
+  {
+    "file": "3-08-dig.gif",
+    "label": "Dig",
+    "slot": "play",
+    "source_url": "bundled:3-08-dig.gif"
+  },
+  {
+    "file": "3-09-digging-in-sand.gif",
+    "label": "Digging in sand",
+    "slot": "play",
+    "source_url": "bundled:3-09-digging-in-sand.gif"
+  },
+  {
+    "file": "3-10-pull-ups.gif",
+    "label": "Pull ups",
+    "slot": "play",
+    "source_url": "bundled:3-10-pull-ups.gif"
+  },
+  {
+    "file": "3-11-thanks.gif",
+    "label": "Thanks",
+    "slot": "gift",
+    "source_url": "bundled:3-11-thanks.gif"
+  },
+  {
+    "file": "3-12-thank-you.gif",
+    "label": "Thank You",
+    "slot": "gift",
+    "source_url": "bundled:3-12-thank-you.gif"
+  },
+  {
+    "file": "3-13-card-game.gif",
+    "label": "Card game",
+    "slot": "play",
+    "source_url": "bundled:3-13-card-game.gif"
+  },
+  {
+    "file": "3-14-game-win.gif",
+    "label": "Game win",
+    "slot": "play",
+    "source_url": "bundled:3-14-game-win.gif"
+  },
+  {
+    "file": "3-15-game-loss.gif",
+    "label": "Game loss",
+    "slot": "play",
+    "source_url": "bundled:3-15-game-loss.gif"
+  },
+  {
+    "file": "3-16-wake-up.gif",
+    "label": "Wake up",
+    "slot": "idle",
+    "source_url": "bundled:3-16-wake-up.gif"
+  }
+]
