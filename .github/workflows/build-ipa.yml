@@ -1,9 +1,9 @@
 
-name: Build Pocket Pika GS IPA
+name: Build Pocket Marril IPA
 
 on:
   push:
-    branches: [main]
+    branches: [main, pocket-marill]
   workflow_dispatch:
 
 permissions:
@@ -58,13 +58,14 @@ jobs:
           mkdir -p "$RUNNER_TEMP/PikaIPA/Payload"
           ditto "$APP" "$RUNNER_TEMP/PikaIPA/Payload/PocketPika.app"
           cd "$RUNNER_TEMP/PikaIPA"
-          zip -q -r -X "$GITHUB_WORKSPACE/PocketPikaGS-unsigned.ipa" Payload
-          unzip -t "$GITHUB_WORKSPACE/PocketPikaGS-unsigned.ipa"
+          zip -q -r -X "$GITHUB_WORKSPACE/PocketMarril-unsigned.ipa" Payload
+          unzip -t "$GITHUB_WORKSPACE/PocketMarril-unsigned.ipa"
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4
         with:
-          name: PocketPikaGS-unsigned-IPA
-          path: PocketPikaGS-unsigned.ipa
+          name: PocketMarril-unsigned-IPA
+          path: PocketMarril-unsigned.ipa
           if-no-files-found: error
           retention-days: 30
+
