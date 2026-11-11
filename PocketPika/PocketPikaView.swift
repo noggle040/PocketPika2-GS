@@ -166,10 +166,12 @@ struct PocketPikaView: View {
     @State private var worldClock = Date()
     @State private var greetingEnds: Date? = nil
     @State private var greetingNumber = 0
+    @State private var birthdayCelebrationEnds: Date? = nil
     @AppStorage("pocket-marill-gs.scene-word") private var storedSceneWord = ""
     @AppStorage("pocket-marill-gs.scene-fallback") private var storedSceneFallback = "idle"
     @AppStorage("pocket-marill-gs.scene-expiry") private var storedSceneExpiry = 0.0
     @AppStorage("pocket-marill-gs.scene-hour") private var storedSceneHour = -1
+    @AppStorage("pocket-marill-gs.birthday-month-day") private var birthdayMonthDay = ""
     @State private var giftReactionEnds: Date? = nil
     @State private var milestoneReactionEnds: Date? = nil
     @State private var milestoneCelebrated: Int = 0
@@ -249,7 +251,9 @@ struct PocketPikaView: View {
         .task {
             store.recordVisit()
             if store.sourceName == "Not connected" { showingSetup = true }
-            resumeStoredActivity()
+            chooseActivityIfNeeded()
+            beginGreeting()
+            beginBirthdayCelebrationIfToday()
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.reloadBundledAnimations() }
             await sprites.syncMilestoneAnimations()
@@ -266,7 +270,9 @@ struct PocketPikaView: View {
                 store.recordVisit()
                 lastButtonPress = Date()
                 lcdSleeping = false
-                resumeStoredActivity()
+                chooseActivityIfNeeded()
+                beginGreeting()
+                beginBirthdayCelebrationIfToday()
                 Task { await store.refresh() }
             }
         }
@@ -460,6 +466,9 @@ struct PocketPikaView: View {
     }
 
     private var displayedActivity: PikaActivity {
+        if birthdayCelebrationEnds.map({ $0 > worldClock }) == true {
+            return PikaActivity(keyword: "Very Happy Marill", fallback: "friend", title: "HAPPY BIRTHDAY!")
+        }
         if let ends = giftReactionEnds, ends > worldClock {
             return PikaDailyLife.giftReaction(lastGiftWatts)
         }
@@ -479,18 +488,17 @@ struct PocketPikaView: View {
                                        steps: store.lifetimeSteps, todaySteps: store.todaySteps)
     }
 
-    private func resumeStoredActivity() {
-        let now = Date()
-        guard !storedSceneWord.isEmpty else {
-            chooseActivityIfNeeded()
-            return
-        }
-        // Keep the last animation visible across app closes and background time.
-        // If its display window expired while away, give that same scene a fresh
-        // active window; the next autonomous scene change happens while open.
-        storedSceneHour = Calendar.current.component(.hour, from: now)
-        if storedSceneExpiry <= now.timeIntervalSince1970 {
-            storedSceneExpiry = now.addingTimeInterval(Double(Int.random(in: 100...300))).timeIntervalSince1970
+    private var isUsersBirthdayToday: Bool {
+        guard birthdayMonthDay.count == 5 else { return false }
+        let components = Calendar.current.dateComponents([.month, .day], from: Date())
+        guard let month = components.month, let day = components.day else { return false }
+        return birthdayMonthDay == String(format: "%02d-%02d", month, day)
+    }
+
+    private func beginBirthdayCelebrationIfToday() {
+        worldClock = Date()
+        if isUsersBirthdayToday {
+            birthdayCelebrationEnds = Date().addingTimeInterval(12)
         }
     }
 
@@ -553,6 +561,11 @@ struct PocketPikaView: View {
                         Text(sprites.isSyncing ? "LOADING MARILL" : "START → SYNC GIFS")
                             .font(.system(size: 10, weight: .heavy, design: .monospaced))
                     }
+                }
+            }
+            .overlay {
+                if birthdayCelebrationEnds.map({ $0 > worldClock }) == true {
+                    BirthdayCelebrationOverlay()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -1096,6 +1109,40 @@ private struct StepSourceSheet: View {
     }
 }
 
+private struct BirthdayCelebrationOverlay: View {
+    @State private var floating = false
+    @State private var sparkle = false
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("🎈").offset(y: floating ? -7 : 5)
+                Spacer()
+                Text("🎈").offset(y: floating ? 5 : -7)
+            }
+            HStack {
+                Text("✨").opacity(sparkle ? 1 : 0.45)
+                Spacer()
+                Text("✨").opacity(sparkle ? 0.45 : 1)
+            }
+            Spacer()
+            HStack {
+                Text("🎉").offset(y: floating ? -4 : 4)
+                Spacer()
+                Text("🎂").scaleEffect(sparkle ? 1.08 : 0.94)
+            }
+        }
+        .font(.system(size: 25))
+        .padding(5)
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { floating = true }
+            withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { sparkle = true }
+        }
+        .accessibilityLabel("Animated balloons, confetti, and birthday cake")
+    }
+}
+
 private struct DeviceOptionsSheet: View {
     @ObservedObject var store: PocketPikaStore
     @ObservedObject var sprites: SpriteLibrary
@@ -1105,6 +1152,26 @@ private struct DeviceOptionsSheet: View {
     @State private var showingSource = false
     @AppStorage("pocket-marill-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
     @AppStorage("pocket-marill-gs.sound-enabled") private var soundEnabled = true
+    @AppStorage("pocket-marill-gs.birthday-month-day") private var birthdayMonthDay = ""
+
+    private var birthdaySelection: Binding<Date> {
+        Binding(
+            get: {
+                let pieces = birthdayMonthDay.split(separator: "-").compactMap { Int($0) }
+                var parts = DateComponents()
+                parts.year = Calendar.current.component(.year, from: Date())
+                parts.month = pieces.count == 2 ? pieces[0] : Calendar.current.component(.month, from: Date())
+                parts.day = pieces.count == 2 ? pieces[1] : Calendar.current.component(.day, from: Date())
+                return Calendar.current.date(from: parts) ?? Date()
+            },
+            set: { date in
+                let parts = Calendar.current.dateComponents([.month, .day], from: date)
+                if let month = parts.month, let day = parts.day {
+                    birthdayMonthDay = String(format: "%02d-%02d", month, day)
+                }
+            }
+        )
+    }
 
     var body: some View {
         NavigationStack {
@@ -1115,6 +1182,12 @@ private struct DeviceOptionsSheet: View {
                     Text(store.connectionStatus).font(.footnote)
                     Button("Change step source") { showingSource = true }
                     Button("Refresh now") { Task { await store.refresh() } }
+                }
+                Section("YOUR BIRTHDAY") {
+                    DatePicker("Birthday", selection: birthdaySelection, displayedComponents: .date)
+                        .datePickerStyle(.compact)
+                    Text("On this month and day, Marill celebrates your birthday when you open the app. The year is not saved.")
+                        .font(.footnote)
                 }
                 Section("MARILL SPRITE GALLERY") {
                     LabeledContent("Gallery", value: "\(sprites.galleryCount) animations")
@@ -1169,5 +1242,6 @@ private struct DeviceOptionsSheet: View {
         }
     }
 }
+
 
 
