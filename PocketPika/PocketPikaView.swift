@@ -1486,7 +1486,7 @@ private struct DeviceOptionsSheet: View {
                     if let message = sprites.errorMessage {
                         Text(message).foregroundStyle(.red)
                     }
-                    Text("48 approved two-pose animations cover greetings, daily routines, friendship, gifts and special activities.")
+                    Text("49 looping Marill animations include daily scenes, gifts, friendship and card-game reactions.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("ORIGINAL DEVICE BEHAVIOR") {
