@@ -286,5 +286,12 @@
     "label": "Wake up",
     "slot": "idle",
     "source_url": "bundled:3-16-wake-up.gif"
+  },
+  {
+    "file": "3-17-card-throw.gif",
+    "label": "Marill Card Flop",
+    "slot": "play",
+    "source_url": "bundled:3-17-card-throw.gif"
   }
 ]
+
