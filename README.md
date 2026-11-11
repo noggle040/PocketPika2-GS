@@ -1,27 +1,14 @@
 # Pocket Marril
 
-Blue-themed Marill companion based on the working PocketPika2-GS v0.8.3 app.
+A blue-themed Marill walking companion based on PocketPika2-GS v0.8.3.
 
-Includes 48 approved two-pose looping GIF animations, bundled for offline use.
-Scene captions have been removed from the in-app images; the existing app supplies
-its activity labels. No shiny or green Marill sprites or remote sprite downloads.
+Includes 48 approved two-pose looping Marill GIF animations, bundled for offline use. No shiny or green Marill sprites or remote sprite downloads.
 
-Ice Water replaces Watts throughout the visible interface, gifts, game and diary.
-Economy is unchanged: 20 steps = 1 Ice Water, with the same gift costs, rewards,
-friendship, daily care, step tracking, milestones and unfolded Duo layout.
-The save's internal watts property remains unchanged for data compatibility.
-App display name: Pocket Marril. Separate bundle ID: com.noggle040.pocketmarillgs.
+Ice Cubes replace Watts throughout the visible interface, gifts, card game, and diary. The economy and save compatibility remain unchanged: 20 steps = 1 Ice Cube, with the same gift costs, rewards, friendship, daily care, step tracking, and milestones. The internal save property remains named `watts` so existing data remains compatible.
 
-## Build
+The chart icon in the handheld screen header opens a scrollable data view with the same stats, milestones, and friendship diary shown in the Duo's unfolded panel. On iPhone 16 Pro, the data view is available from the portrait layout.
 
-Use a separate pocket-marill branch of noggle040/PocketPika2-GS, or a separate
-repository with these files at its root. The included workflow builds an unsigned
-PocketMarril-unsigned.ipa on the original xcode-27 runner configuration.
-All character assets are now included; no asset download is needed.
+App display name: Pocket Marril. Bundle ID: `com.noggle040.pocketmarillgs`.
 
-## Status
+The GitHub Actions workflow builds an unsigned IPA on the stable `macos-26` runner when changes are pushed to `pocket-marill`.
 
-Source and asset validation completed. Not compiled or tested on an iPhone.
-GitHub rejected branch creation with HTTP 403 (integration lacks write access),
-so no workflow has been started. The approved animations remain two-pose loops,
-not frame-for-frame reproductions of the original Pikachu GIFs.
