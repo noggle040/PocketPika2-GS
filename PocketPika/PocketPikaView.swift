@@ -249,8 +249,7 @@ struct PocketPikaView: View {
         .task {
             store.recordVisit()
             if store.sourceName == "Not connected" { showingSetup = true }
-            chooseActivityIfNeeded()
-            beginGreeting()
+            resumeStoredActivity()
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.reloadBundledAnimations() }
             await sprites.syncMilestoneAnimations()
@@ -267,8 +266,7 @@ struct PocketPikaView: View {
                 store.recordVisit()
                 lastButtonPress = Date()
                 lcdSleeping = false
-                chooseActivityIfNeeded()
-                beginGreeting()
+                resumeStoredActivity()
                 Task { await store.refresh() }
             }
         }
@@ -481,6 +479,21 @@ struct PocketPikaView: View {
                                        steps: store.lifetimeSteps, todaySteps: store.todaySteps)
     }
 
+    private func resumeStoredActivity() {
+        let now = Date()
+        guard !storedSceneWord.isEmpty else {
+            chooseActivityIfNeeded()
+            return
+        }
+        // Keep the last animation visible across app closes and background time.
+        // If its display window expired while away, give that same scene a fresh
+        // active window; the next autonomous scene change happens while open.
+        storedSceneHour = Calendar.current.component(.hour, from: now)
+        if storedSceneExpiry <= now.timeIntervalSince1970 {
+            storedSceneExpiry = now.addingTimeInterval(Double(Int.random(in: 100...300))).timeIntervalSince1970
+        }
+    }
+
     private func chooseActivityIfNeeded() {
         let now = Date()
         let hour = Calendar.current.component(.hour, from: now)
@@ -495,11 +508,7 @@ struct PocketPikaView: View {
         storedSceneExpiry = now.addingTimeInterval(Double(Int.random(in: 100...300))).timeIntervalSince1970
     }
 
-    private func beginGreeting() {
-        worldClock = Date()
-        greetingNumber = Int.random(in: 0..<100)
-        greetingEnds = Date().addingTimeInterval(6)
-    }
+
 
     // Only A wakes the original device's LCD. The other buttons are ignored
     // while the virtual screen is asleep.
@@ -512,6 +521,12 @@ struct PocketPikaView: View {
         }
         lastButtonPress = Date()
         return true
+    }
+
+    private func beginGreeting() {
+        worldClock = Date()
+        greetingNumber = Int.random(in: 0..<100)
+        greetingEnds = Date().addingTimeInterval(6)
     }
 
     private func showGreetingAfterWake() {
