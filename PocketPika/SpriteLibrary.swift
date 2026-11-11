@@ -19,87 +19,14 @@ struct PixelAnimation {
             let gif = props?[kCGImagePropertyGIFDictionary] as? [CFString: Any]
             let seconds = (gif?[kCGImagePropertyGIFUnclampedDelayTime] as? NSNumber)?.doubleValue
                 ?? (gif?[kCGImagePropertyGIFDelayTime] as? NSNumber)?.doubleValue ?? 0.16
-            // The archived GIFs have opaque white canvases. Remove only
-            // white pixels connected to the outer edge of each frame, keeping
-            // the yellow Pikachu and isolated white details intact.
-            let frame = fileURL.pathExtension.lowercased() == "gif"
-                ? Self.clearWhiteBackdrop(of: image) : UIImage(cgImage: image)
-            loaded.append(frame)
+            // Decode the source image without recoloring or removing any pixels.
+            loaded.append(UIImage(cgImage: image))
             delays.append(max(0.06, seconds))
         }
         guard !loaded.isEmpty else { return nil }
         frames = loaded
         durations = delays
         totalDuration = delays.reduce(0, +)
-    }
-
-    // Edge-connected near-white removal avoids turning unrelated light
-    // details inside Pikachu transparent. The frame is decoded once and
-    // cached by SpriteLibrary; animation playback stays lightweight.
-    private static func clearWhiteBackdrop(of original: CGImage) -> UIImage {
-        let width = original.width
-        let height = original.height
-        guard width > 0, height > 0, width <= 1200, height <= 1200 else {
-            return UIImage(cgImage: original)
-        }
-        let stride = width * 4
-        var pixels = [UInt8](repeating: 0, count: stride * height)
-        let processed: CGImage? = pixels.withUnsafeMutableBytes { raw -> CGImage? in
-            guard let context = CGContext(
-                data: raw.baseAddress,
-                width: width,
-                height: height,
-                bitsPerComponent: 8,
-                bytesPerRow: stride,
-                space: CGColorSpaceCreateDeviceRGB(),
-                bitmapInfo: CGBitmapInfo.byteOrder32Big.rawValue |
-                            CGImageAlphaInfo.premultipliedLast.rawValue
-            ) else { return nil }
-            context.interpolationQuality = .none
-            context.draw(original, in: CGRect(x: 0, y: 0, width: width, height: height))
-            let data = raw.bindMemory(to: UInt8.self)
-            let total = width * height
-            var visited = [Bool](repeating: false, count: total)
-            var pending = [Int]()
-            pending.reserveCapacity(min(total, 2048))
-
-            func enqueue(_ pixel: Int) {
-                guard pixel >= 0, pixel < total, !visited[pixel] else { return }
-                visited[pixel] = true
-                let offset = pixel * 4
-                let transparent = data[offset + 3] < 25
-                let white = data[offset] >= 238 &&
-                            data[offset + 1] >= 238 &&
-                            data[offset + 2] >= 238
-                if transparent || white { pending.append(pixel) }
-            }
-            for x in 0..<width {
-                enqueue(x)
-                enqueue((height - 1) * width + x)
-            }
-            for y in 0..<height {
-                enqueue(y * width)
-                enqueue(y * width + width - 1)
-            }
-            var head = 0
-            while head < pending.count {
-                let pixel = pending[head]
-                head += 1
-                let offset = pixel * 4
-                data[offset] = 0
-                data[offset + 1] = 0
-                data[offset + 2] = 0
-                data[offset + 3] = 0
-                let x = pixel % width
-                let y = pixel / width
-                if x > 0 { enqueue(pixel - 1) }
-                if x + 1 < width { enqueue(pixel + 1) }
-                if y > 0 { enqueue(pixel - width) }
-                if y + 1 < height { enqueue(pixel + width) }
-            }
-            return context.makeImage()
-        }
-        return processed.map { UIImage(cgImage: $0) } ?? UIImage(cgImage: original)
     }
 
     func frame(at date: Date) -> UIImage {
@@ -132,13 +59,13 @@ final class SpriteLibrary: ObservableObject {
         ("bath", "Bath / Evening"),
         ("sleep", "Sleeping"),
         ("friend", "Friendship"),
-        ("gift", "Giving Watts")
+        ("gift", "Giving Ice Water")
     ]
-    private static let pageURL = URL(string: "https://www.serebii.net/virtualpet/pokemonpikachu2/")!
+    private static let pageURL = URL(string: "https://pokestats.gg/sprites/marill")!
     // Requested custom milestone scenes. They may be outside the first 45
     // standard gallery GIFs downloaded by earlier app versions.
     private static let specialSceneNames = [
-        "Writing Name", "Very Happy Pikachu", "Yo-yo", "Hula Hoop",
+        "Writing Name", "Very Happy Marill", "Yo-yo", "Hula Hoop",
         "Art time", "Fireworks", "Very Friendly"
     ]
 
@@ -158,10 +85,10 @@ final class SpriteLibrary: ObservableObject {
     init() {
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         folder = documents.appendingPathComponent("SpriteImports", isDirectory: true)
-        galleryFolder = documents.appendingPathComponent("SerebiiGallery", isDirectory: true)
+        galleryFolder = documents.appendingPathComponent("MarillGallery", isDirectory: true)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(at: galleryFolder, withIntermediateDirectories: true)
-        if let base = Bundle.main.resourceURL?.appendingPathComponent("SerebiiGallery"),
+        if let base = Bundle.main.resourceURL?.appendingPathComponent("MarillGallery"),
            let data = try? Data(contentsOf: base.appendingPathComponent("manifest.json")),
            let entries = try? JSONDecoder().decode([GalleryGIF].self, from: data) {
             bundled = entries
@@ -174,13 +101,13 @@ final class SpriteLibrary: ObservableObject {
     func name(for slot: String) -> String {
         if let name = savedNames[slot] { return name + " (custom override)" }
         let items = gallery.filter { $0.slot == slot }
-        return items.isEmpty ? "No animation found" : "\(items.count) original GIF(s)"
+        return items.isEmpty ? "No animation found" : "\(items.count) animation(s)"
     }
 
     func title(for slot: String) -> String {
         if savedNames[slot] != nil { return "CUSTOM ANIMATION" }
         let items = gallery.filter { $0.slot == slot }
-        guard !items.isEmpty else { return "AWAITING PIKACHU GIFS" }
+        guard !items.isEmpty else { return "AWAITING MARILL GIFS" }
         let index = (selected[slot] ?? 0) % items.count
         return items[index].label.uppercased()
     }
@@ -226,10 +153,8 @@ final class SpriteLibrary: ObservableObject {
     }
 
     private func urlFor(_ entry: GalleryGIF) -> URL {
-        let local = galleryFolder.appendingPathComponent(entry.file)
-        if FileManager.default.fileExists(atPath: local.path) { return local }
         return (Bundle.main.resourceURL ?? galleryFolder)
-            .appendingPathComponent("SerebiiGallery")
+            .appendingPathComponent("MarillGallery")
             .appendingPathComponent(entry.file)
     }
 
@@ -248,14 +173,8 @@ final class SpriteLibrary: ObservableObject {
         }
         imports = found
         savedNames = names
-        let localManifest = galleryFolder.appendingPathComponent("manifest.json")
-        var local: [GalleryGIF] = []
-        if let data = try? Data(contentsOf: localManifest) {
-            local = (try? JSONDecoder().decode([GalleryGIF].self, from: data)) ?? []
-        }
-        let localKeys = Set(local.map(\.source_url))
-        gallery = local + bundled.filter { !localKeys.contains($0.source_url) }
-        syncStatus = gallery.isEmpty ? "No GS sprites saved. Connect to download gallery." : "\(gallery.count) GS animations available."
+        gallery = bundled
+        syncStatus = gallery.isEmpty ? "No bundled animations found." : "\(gallery.count) Marill sprites available."
     }
 
     func importSprite(_ url: URL, into slot: String) {
@@ -288,184 +207,11 @@ final class SpriteLibrary: ObservableObject {
         }
     }
 
-    // On upgrade, fetch only the handful of custom milestone activities that
-    // earlier versions may not have saved. This runs once after the main gallery
-    // is ready, and never blocks the handheld when the network is unavailable.
-    func syncMilestoneAnimations() async {
-        let checkKey = "pocket-pika-gs.milestone-gallery-check.v082"
-        guard !UserDefaults.standard.bool(forKey: checkKey), !isSyncing else { return }
-        let missing = Self.specialSceneNames.filter { name in
-            !gallery.contains { $0.label.localizedCaseInsensitiveContains(name) }
-        }
-        if missing.isEmpty {
-            UserDefaults.standard.set(true, forKey: checkKey)
-            return
-        }
-        isSyncing = true
-        defer { isSyncing = false }
-        do {
-            var request = URLRequest(url: Self.pageURL)
-            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
-            let (body, result) = try await URLSession.shared.data(for: request)
-            guard (result as? HTTPURLResponse)?.statusCode == 200,
-                  let html = String(data: body, encoding: .utf8) ?? String(data: body, encoding: .isoLatin1) else {
-                return // Retry if internet is available on a future launch.
-            }
-            let candidates = Self.candidates(in: html)
-            var local: [GalleryGIF] = []
-            if let data = try? Data(contentsOf: galleryFolder.appendingPathComponent("manifest.json")) {
-                local = (try? JSONDecoder().decode([GalleryGIF].self, from: data)) ?? []
-            }
-            var seen = Set((local + gallery).map(\.source_url))
-            var additions = 0
-            for (index, name) in missing.enumerated() {
-                guard let candidate = candidates.first(where: {
-                    $0.label.localizedCaseInsensitiveContains(name)
-                }), !seen.contains(candidate.source_url),
-                let url = URL(string: candidate.source_url) else { continue }
-                var gifRequest = URLRequest(url: url)
-                gifRequest.setValue(Self.pageURL.absoluteString, forHTTPHeaderField: "Referer")
-                gifRequest.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
-                do {
-                    let (bytes, response) = try await URLSession.shared.data(for: gifRequest)
-                    guard (response as? HTTPURLResponse)?.statusCode == 200,
-                          bytes.count < 4_000_000,
-                          bytes.starts(with: [71, 73, 70, 56]) else { continue }
-                    let file = "milestone_\(index)_v082.gif"
-                    try bytes.write(to: galleryFolder.appendingPathComponent(file), options: .atomic)
-                    local.append(GalleryGIF(file: file, label: candidate.label,
-                                            slot: candidate.slot, source_url: candidate.source_url))
-                    seen.insert(candidate.source_url)
-                    additions += 1
-                } catch { continue }
-            }
-            if additions > 0 {
-                try JSONEncoder().encode(local).write(
-                    to: galleryFolder.appendingPathComponent("manifest.json"), options: .atomic)
-                reload()
-            }
-            // Successful catalog fetch completes this one-time best-effort sync.
-            UserDefaults.standard.set(true, forKey: checkKey)
-        } catch { /* Original gallery remains usable without internet. */ }
-    }
+    func syncMilestoneAnimations() async { }
 
-    /// Automatically sync original GIF files from the website with permission asserted by the owner.
-    /// All files are stored locally; no web service or tracking is used by the app.
-    func syncFromSerebii() async {
-        guard !isSyncing else { return }
-        isSyncing = true
-        errorMessage = nil
-        syncStatus = "Connecting to the GS animation gallery..."
-        defer { isSyncing = false }
-        do {
-            var request = URLRequest(url: Self.pageURL)
-            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 200 else { throw GalleryError.badPage }
-            guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else { throw GalleryError.badPage }
-            let candidates = Self.candidates(in: html)
-            guard !candidates.isEmpty else { throw GalleryError.noImages }
-            let existing = Set(gallery.map(\.source_url))
-            var downloaded = 0
-            var local: [GalleryGIF] = []
-            if let data = try? Data(contentsOf: galleryFolder.appendingPathComponent("manifest.json")) {
-                local = (try? JSONDecoder().decode([GalleryGIF].self, from: data)) ?? []
-            }
-            let slotsPriority = ["idle", "walk", "meal", "sleep", "bath", "friend", "gift", "play"]
-            let ordered = slotsPriority.flatMap { slot in candidates.filter { $0.slot == slot } }
-            for (i, item) in ordered.enumerated() {
-                if downloaded >= 45 { break }
-                if existing.contains(item.source_url) { continue }
-                guard let url = URL(string: item.source_url) else { continue }
-                var imageRequest = URLRequest(url: url)
-                imageRequest.setValue(Self.pageURL.absoluteString, forHTTPHeaderField: "Referer")
-                imageRequest.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 Mobile", forHTTPHeaderField: "User-Agent")
-                do {
-                    let (bytes, result) = try await URLSession.shared.data(for: imageRequest)
-                    guard (result as? HTTPURLResponse)?.statusCode == 200,
-                          bytes.count < 4_000_000,
-                          bytes.starts(with: [71, 73, 70, 56]),
-                          bytes.count >= 6 else { continue }
-                    let name = "serebii_\(i).gif"
-                    try bytes.write(to: galleryFolder.appendingPathComponent(name), options: .atomic)
-                    local.append(GalleryGIF(file: name, label: item.label, slot: item.slot, source_url: item.source_url))
-                    downloaded += 1
-                    syncStatus = "Downloading GS GIFs: \(downloaded) saved"
-                } catch {
-                    // Some original files may no longer exist. Keep the ones that succeeded.
-                }
-            }
-            if !local.isEmpty {
-                let manifest = try JSONEncoder().encode(local)
-                try manifest.write(to: galleryFolder.appendingPathComponent("manifest.json"), options: .atomic)
-            }
-            reload()
-            if gallery.isEmpty { throw GalleryError.noImages }
-            syncStatus = "Ready: \(gallery.count) original Pocket Pikachu 2 GIFs."
-        } catch {
-            syncStatus = "Gallery download unavailable."
-            errorMessage = "Couldn't fetch GIFs from Serebii: \(error.localizedDescription). You can retry in Settings or import files manually."
-        }
-    }
-
-    private enum GalleryError: LocalizedError {
-        case badPage, noImages
-        var errorDescription: String? {
-            switch self {
-            case .badPage: return "The page didn't return a readable response"
-            case .noImages: return "No matching original GIF images were found in the page HTML"
-            }
-        }
-    }
-
-    private static func candidates(in html: String) -> [GalleryGIF] {
-        guard let tagRe = try? NSRegularExpression(pattern: #"(?is)<img\b[^>]*>"#) else { return [] }
-        let ns = html as NSString
-        let tags = tagRe.matches(in: html, range: NSRange(location: 0, length: ns.length))
-        var results: [GalleryGIF] = []
-        var seen = Set<String>()
-        for tagMatch in tags {
-            let tag = ns.substring(with: tagMatch.range)
-            guard let src = attribute("src", in: tag) ?? attribute("data-src", in: tag),
-                  let alt = attribute("alt", in: tag) ?? attribute("title", in: tag) else { continue }
-            let altLower = alt.lowercased()
-            guard altLower.contains("animated pocket pikachu 2") else { continue }
-            guard let resolved = URL(string: src.replacingOccurrences(of: "&amp;", with: "&"), relativeTo: Self.pageURL)?.absoluteURL else { continue }
-            var components = URLComponents(url: resolved, resolvingAgainstBaseURL: true)
-            components?.scheme = "https"
-            guard let url = components?.url, let hostname = url.host?.lowercased(),
-                  hostname == "serebii.net" || hostname.hasSuffix(".serebii.net"),
-                  !seen.contains(url.absoluteString) else { continue }
-            seen.insert(url.absoluteString)
-            let label = alt.replacingOccurrences(of: #"(?i)^animated\s+pocket\s+pikachu\s*2\s+image\s*[-:]?\s*"#, with: "", options: .regularExpression)
-            let slot = classify(label)
-            results.append(GalleryGIF(file: "", label: label, slot: slot, source_url: url.absoluteString))
-        }
-        return results
-    }
-
-    private static func attribute(_ name: String, in tag: String) -> String? {
-        let pattern = "(?i)\\b" + NSRegularExpression.escapedPattern(for: name) + #"\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s>]+))"#
-        guard let re = try? NSRegularExpression(pattern: pattern),
-              let match = re.firstMatch(in: tag, range: NSRange(location: 0, length: (tag as NSString).length)) else { return nil }
-        let ns = tag as NSString
-        for group in 1...3 where match.range(at: group).location != NSNotFound {
-            return ns.substring(with: match.range(at: group))
-        }
-        return nil
-    }
-
-    private static func classify(_ label: String) -> String {
-        let text = label.lowercased()
-        func has(_ terms: [String]) -> Bool { terms.contains { text.contains($0) } }
-        if has(["sleep", "dream", "waking", "night time", "yawn"]) { return "sleep" }
-        if has(["bath", "shower", "brush teeth"]) { return "bath" }
-        if has(["eat", "apple", "juice", "ice cream", "food", "mealtime", "breakfast"]) { return "meal" }
-        if has(["walk", "heading", "roll", "skipping", "aerobics", "pull up", "hula hoop", "stroll"]) { return "walk" }
-        if has(["grumpy", "friend", "very happy", "waving", "wave"]) { return "friend" }
-        if has(["thanks", "thank you", "gift", "wink"]) { return "gift" }
-        if has(["greeting", "come here", "nice to meet", "falls over", "pikachu's back", "dance"]) { return "idle" }
-        return "play"
+    func reloadBundledAnimations() async {
+        cache.removeAll()
+        reload()
     }
 }
 
@@ -480,3 +226,4 @@ struct AnimatedPixelSprite: View {
         }
     }
 }
+

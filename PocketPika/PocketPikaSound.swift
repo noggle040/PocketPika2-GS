@@ -28,7 +28,7 @@ final class PocketPikaSound {
     private init() {}
 
     func play(_ sound: PocketPikaTone) {
-        guard UserDefaults.standard.object(forKey: "pocket-pika-gs.sound-enabled") as? Bool ?? true else { return }
+        guard UserDefaults.standard.object(forKey: "pocket-marill-gs.sound-enabled") as? Bool ?? true else { return }
         do {
             try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default, options: [.mixWithOthers])
             let data = Self.makeWave(sound.notes)
@@ -81,3 +81,4 @@ final class PocketPikaSound {
         return bytes
     }
 }
+

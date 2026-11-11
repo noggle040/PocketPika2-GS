@@ -41,7 +41,7 @@ private struct PikaSave: Codable {
     var friendshipCheckedOn: Date? = nil
     // Local calendar-day check-ins. Optional for backward-compatible v0.8 saves.
     var visitedDays: [Date]? = nil
-    // Optional fields ensure upgrades retain existing Health, Watt and friendship data.
+    // Optional fields ensure upgrades retain existing Health, Ice Water and friendship data.
     var diaryEntries: [PikaDiaryEntry]? = nil
     var dailyMilestoneDate: Date? = nil
     var dailyMilestoneLevels: [Int]? = nil
@@ -66,7 +66,7 @@ final class PocketPikaStore: ObservableObject {
     @Published private(set) var friendshipState = "PLAYMATES"
     @Published private(set) var friendshipPoints = 0
     @Published private(set) var checkedInToday = false
-    @Published private(set) var dailyCareReport = "Pikachu is looking forward to today's check-in."
+    @Published private(set) var dailyCareReport = "Marill is looking forward to today's check-in."
     @Published private(set) var diaryEntries: [PikaDiaryEntry] = []
     @Published private(set) var achievedDailyMilestones: [Int] = []
     @Published private(set) var latestDailyMilestone: Int? = nil
@@ -84,10 +84,10 @@ final class PocketPikaStore: ObservableObject {
     @Published private(set) var lastCardResult = ""
     @Published private(set) var giftsGiven = 0
 
-    private let saveKey = "pocket-pika-gs.v2"
+    private let saveKey = "pocket-marill-gs.v2"
     // Stored separately so existing v0.2–v0.5.1 saves decode unchanged.
-    private let stepCreditDateKey = "pocket-pika-gs.v2.credit-date"
-    private let stepCreditCountKey = "pocket-pika-gs.v2.credit-count"
+    private let stepCreditDateKey = "pocket-marill-gs.v2.credit-date"
+    private let stepCreditCountKey = "pocket-marill-gs.v2.credit-count"
     private let health = HKHealthStore()
     private let pedometer = CMPedometer()
     private var game: PikaSave
@@ -98,7 +98,7 @@ final class PocketPikaStore: ObservableObject {
     private let lowStepFriendshipPenalty = 550
     private let missedVisitFriendshipPenalty = 150
 
-    // CUSTOM, one-time-per-day milestones. No bonus Watts: 20 steps = 1 Watt remains unchanged.
+    // CUSTOM, one-time-per-day milestones. No bonus Ice Water: 20 steps = 1 Ice Water remains unchanged.
     let dailyMilestoneTargets: [Int] = [3_000, 5_000, 10_000, 15_000, 20_000, 25_000]
     private let lifetimeMilestoneTargets: [Int] = [5_000, 25_000, 100_000, 150_000, 300_000, 1_000_000]
 
@@ -109,7 +109,7 @@ final class PocketPikaStore: ObservableObject {
         } else {
             game = PikaSave()
         }
-        // Preserve the previous Watt bank/step history and map existing friendliness.
+        // Preserve the previous Ice Water bank/step history and map existing friendliness.
         if game.friendshipPoints == nil {
             game.friendshipPoints = game.giftsGiven == 0
                 ? 0 : min(7_000, max(-1_500, (game.friendship - 10) * 50))
@@ -126,7 +126,7 @@ final class PocketPikaStore: ObservableObject {
         let isDiaryMigration = game.diaryEntries == nil
         if isDiaryMigration {
             game.diaryEntries = [PikaDiaryEntry(title: "Our adventure continues",
-                detail: "Pikachu's friendship diary is ready. Future check-ins, gifts and achievements appear here.",
+                detail: "Marill's friendship diary is ready. Future check-ins, gifts and achievements appear here.",
                 icon: "book.closed.fill")]
         }
         present()
@@ -178,7 +178,7 @@ final class PocketPikaStore: ObservableObject {
     var currentlyPlaying: Bool { currentCard > 0 }
 
     // Only deliberate use of the app records a visit. The background/foreground
-    // step refresh timer does NOT count as checking in with Pikachu.
+    // step refresh timer does NOT count as checking in with Marill.
     func recordVisit() {
         let today = Calendar.current.startOfDay(for: Date())
         let calendar = Calendar.current
@@ -188,8 +188,8 @@ final class PocketPikaStore: ObservableObject {
         // Keep enough history for a month of offline use, but bound the save.
         game.visitedDays = Array(visited.suffix(45))
         dailyCareReport = "Checked in today. Get 3,000 steps to protect your friendship."
-        addDiary(title: "You visited Pikachu",
-                 detail: "Today's check-in is complete. Pikachu is happy you stopped by.",
+        addDiary(title: "You visited Marill",
+                 detail: "Today's check-in is complete. Marill is happy you stopped by.",
                  icon: "hand.wave.fill")
         persist()
     }
@@ -252,35 +252,35 @@ final class PocketPikaStore: ObservableObject {
         game.healthRecorded = 0
         game.motionCursor = game.sourceBegan
         // Switching step providers must not erase yesterday's care check.
-        message = "Connected. Your next steps will earn Watts!"
+        message = "Connected. Your next steps will earn Ice Water!"
         persist()
     }
 
     func giveWatts(_ amount: Int) {
         guard amount > 0 else { return }
         guard game.watts >= amount else {
-            message = "Not enough Watts yet. Let's walk!"
+            message = "Not enough Ice Water yet. Let's walk!"
             return
         }
         game.watts -= amount
-        // One gift Watt earns approximately one goodwill point. The original
+        // One gift Ice Water earns approximately one goodwill point. The original
         // GS conversion curve is undocumented; larger gifts naturally add more.
         game.friendshipPoints = min(8_000, (game.friendshipPoints ?? 0) + amount)
         game.giftsGiven += amount
         game.lastGift = Date()
-        message = "Pikachu received \(amount) Watts! \(Self.state(for: game.friendshipPoints ?? 0))."
-        addDiary(title: "You gave Pikachu a gift",
-                 detail: "Spent \(amount.formatted()) Watts. Friendship is now \(Self.state(for: game.friendshipPoints ?? 0)).",
+        message = "Marill received \(amount) Ice Water! \(Self.state(for: game.friendshipPoints ?? 0))."
+        addDiary(title: "You gave Marill a gift",
+                 detail: "Spent \(amount.formatted()) Ice Water. Friendship is now \(Self.state(for: game.friendshipPoints ?? 0)).",
                  icon: "gift.fill", friendshipChange: amount)
         persist()
     }
 
     // The original device doesn't award friendship for simply pressing A.
-    func patPika() { message = "Pikachu notices you checking in." }
+    func patPika() { message = "Marill notices you checking in." }
 
     func startCardGame() {
         guard !currentlyPlaying else { return }
-        guard game.watts >= 5 else { message = "The card game needs 5 Watts."; return }
+        guard game.watts >= 5 else { message = "The card game needs 5 Ice Water."; return }
         game.watts -= 5
         game.currentCard = Int.random(in: 2...14)
         game.pendingWin = 0
@@ -319,11 +319,11 @@ final class PocketPikaStore: ObservableObject {
         game.currentCard = 0
         game.pendingWin = 0
         game.streak = 0
-        lastCardResult = "You banked \(prize) Watts. Nice!"
+        lastCardResult = "You banked \(prize) Ice Water. Nice!"
         persist()
     }
 
-    // Bank the current pot when navigating away; never silently lose earned Watts.
+    // Bank the current pot when navigating away; never silently lose earned Ice Water.
     func leaveCardGame() {
         if currentlyPlaying { bankWin() }
     }
@@ -387,11 +387,11 @@ final class PocketPikaStore: ObservableObject {
             if goal == 3_000 {
                 detail = "You've met today's friendship-care step goal. Keep your daily check-in too!"
             } else if goal == 10_000 {
-                detail = "10,000 steps in one day! Special Pikachu activities can now appear more often today."
+                detail = "10,000 steps in one day! Special Marill activities can now appear more often today."
             } else if goal >= 15_000 {
-                detail = "A huge walking day. More special Pikachu activities are available today."
+                detail = "A huge walking day. More special Marill activities are available today."
             } else {
-                detail = "A new one-day step record milestone. Pikachu has more exploring to do!"
+                detail = "A new one-day step record milestone. Marill has more exploring to do!"
             }
             addDiary(title: "\(goal.formatted()) steps today!", detail: detail,
                      icon: goal >= 10_000 ? "star.fill" : "figure.walk", at: now)
@@ -409,12 +409,12 @@ final class PocketPikaStore: ObservableObject {
         let newWatts = game.lifetimeSteps / 20
         let delta = newWatts - oldWatts
         game.watts += delta
-        if delta > 0 { message = "\(newSteps.formatted()) new steps! +\(delta) Watts." }
+        if delta > 0 { message = "\(newSteps.formatted()) new steps! +\(delta) Ice Water." }
         for goal in lifetimeMilestoneTargets where previousLifetime < goal && game.lifetimeSteps >= goal {
             addDiary(title: "\(goal.formatted()) lifetime steps!",
                      detail: goal == 1_000_000
-                         ? "One million steps! Pikachu has reached a legendary milestone."
-                         : "An all-time walking achievement. Keep exploring with Pikachu!",
+                         ? "One million steps! Marill has reached a legendary milestone."
+                         : "An all-time walking achievement. Keep exploring with Marill!",
                      icon: "rosette", at: Date())
         }
         persist()
@@ -463,9 +463,9 @@ final class PocketPikaStore: ObservableObject {
             // the saved property for compatibility but do not use it for deltas.
             game.healthRecorded = max(game.healthRecorded, currentTotal)
             if currentTotal > 0 {
-                connectionStatus = "Apple Health shows \(currentTotal.formatted()) steps today. Imported \(newSteps.formatted()) new steps into Pocket Pika."
+                connectionStatus = "Apple Health shows \(currentTotal.formatted()) steps today. Imported \(newSteps.formatted()) new steps into Pocket Marril."
             } else {
-                connectionStatus = "Apple Health returned no readable steps for today. If Health itself shows steps, open Settings > Health > Data Access & Devices > Pocket Pika GS and enable reading Steps. HealthKit cannot reveal whether read permission was denied."
+                connectionStatus = "Apple Health returned no readable steps for today. If Health itself shows steps, open Settings > Health > Data Access & Devices > Pocket Marril and enable reading Steps. HealthKit cannot reveal whether read permission was denied."
             }
             recordDailyMilestones(at: now)
             await refreshWeek(isHealth: true, now: now)
@@ -569,15 +569,15 @@ final class PocketPikaStore: ObservableObject {
             game.friendshipPoints = max(-1_500, (game.friendshipPoints ?? 0) - loss)
             let stepsSummary = lowStepDays == 1 ? "1 low-step day" : "\(lowStepDays) low-step days"
             let visitsSummary = missedVisits == 1 ? "1 missed check-in" : "\(missedVisits) missed check-ins"
-            message = "Pikachu missed you: \(stepsSummary), \(visitsSummary). Friendship -\(loss)."
+            message = "Marill missed you: \(stepsSummary), \(visitsSummary). Friendship -\(loss)."
             dailyCareReport = message
-            addDiary(title: "Pikachu missed you",
+            addDiary(title: "Marill missed you",
                      detail: "\(stepsSummary), \(visitsSummary). Daily care decreased friendship by \(loss) points.",
                      icon: "heart.slash.fill", friendshipChange: -loss, at: now)
         } else if !stepHistoryUsable {
             dailyCareReport = "Daily check-ins reviewed. Step penalties skipped because step history isn't verifiable."
         } else {
-            dailyCareReport = "All checked days met Pikachu's care goals!"
+            dailyCareReport = "All checked days met Marill's care goals!"
         }
         // Do not wipe the visit log on date rollover. Keep only the horizon
         // that the program can still reconcile next time it is launched.
@@ -635,3 +635,4 @@ final class PocketPikaStore: ObservableObject {
         }
     }
 }
+

@@ -3,13 +3,13 @@ import UIKit
 import UniformTypeIdentifiers
 
 private enum ShellColor {
-    static let caseSilver = Color(red: 0.99, green: 0.75, blue: 0.14)
-    static let caseBright = Color(red: 1.00, green: 0.92, blue: 0.39)
-    static let caseDark = Color(red: 0.77, green: 0.48, blue: 0.09)
+    static let caseSilver = Color(red: 0.12, green: 0.55, blue: 0.91)
+    static let caseBright = Color(red: 0.45, green: 0.80, blue: 1.00)
+    static let caseDark = Color(red: 0.05, green: 0.28, blue: 0.57)
     static let bezel = Color(red: 0.095, green: 0.14, blue: 0.23)
-    static let lcd = Color(red: 0.70, green: 0.86, blue: 0.67)
-    static let lcdShade = Color(red: 0.48, green: 0.68, blue: 0.49)
-    static let ink = Color(red: 0.12, green: 0.21, blue: 0.18)
+    static let lcd = Color(red: 0.85, green: 0.96, blue: 1.00)
+    static let lcdShade = Color(red: 0.51, green: 0.76, blue: 0.89)
+    static let ink = Color(red: 0.06, green: 0.17, blue: 0.31)
     static let back = Color(red: 0.07, green: 0.11, blue: 0.18)
     static let bright = Color(red: 0.99, green: 0.96, blue: 0.86)
 }
@@ -19,7 +19,7 @@ private enum DevicePage: Int, CaseIterable, Identifiable {
     var id: Int { rawValue }
     var label: String {
         switch self {
-        case .companion: return "PIKA"
+        case .companion: return "MARILL"
         case .steps: return "STEPS"
         case .presents: return "GIFT"
         case .cards: return "CARDS"
@@ -40,7 +40,7 @@ private enum DevicePage: Int, CaseIterable, Identifiable {
 }
 
 
-// Recreates the documented Pokémon Pikachu 2 GS *daily activity windows*.
+// Recreates the documented Pokémon Marill 2 GS *daily activity windows*.
 // This is a behavioral recreation, not firmware emulation. Original randomness,
 // minute-accurate sleep timeout, and GS numeric friendship thresholds are unknown.
 private struct PikaActivity {
@@ -64,11 +64,11 @@ private enum PikaDailyLife {
         }
         if friendship == "STRANGER" { return a("Poké Ball", "friend") }
         if friendship == "MEANIE" && Int.random(in: 0..<10) < 7 {
-            return a("Pikachu's Back", "friend")
+            return a("Marill's Back", "friend")
         }
         // CUSTOM walking rewards. Rare activities appear during daytime;
         // their relative chances are modeled rather than GS firmware-accurate.
-        // They do not override bedtime or Pikachu's low-friendship reactions.
+        // They do not override bedtime or Marill's low-friendship reactions.
         if hour >= 8 && hour < 20 && friendship != "STRANGER" && friendship != "MEANIE" {
             let odds: Int
             if todaySteps >= 20_000 { odds = 18 }
@@ -77,7 +77,7 @@ private enum PikaDailyLife {
             else { odds = 0 }
             if odds > 0 && Int.random(in: 0..<100) < odds {
                 var rareScenes = [a("Writing Name", "play"),
-                                  a("Very Happy Pikachu", "friend"),
+                                  a("Very Happy Marill", "friend"),
                                   a("Yo-yo", "play")]
                 if todaySteps >= 15_000 { rareScenes.append(a("Hula Hoop", "play")) }
                 if todaySteps >= 20_000 { rareScenes.append(a("Art time", "play")) }
@@ -88,7 +88,7 @@ private enum PikaDailyLife {
         }
         switch hour {
         case 0..<7, 21..<24:
-            return a("Pikachu Sleeps", "sleep")
+            return a("Marill Sleeps", "sleep")
         case 7..<8:
             return choose([a("Mealtime", "meal"), a("Brush Teeth", "bath")])
         case 8..<12:
@@ -123,30 +123,30 @@ private enum PikaDailyLife {
             PikaActivity(keyword: word, fallback: "idle", title: title)
         }
         switch friendship {
-        case "STRANGER": return a("Poké Ball", "PIKACHU IS HIDING")
-        case "MEANIE": return a("Pikachu's Back", "PIKACHU TURNS AWAY")
+        case "STRANGER": return a("Poké Ball", "MARILL IS HIDING")
+        case "MEANIE": return a("Marill's Back", "MARILL TURNS AWAY")
         case "BEST PALS":
-            return [a("Wave", "PIKACHU WAVES"), a("Very Happy Pikachu", "HAPPY TO SEE YOU"),
-                    a("Very Friendly", "BEST PALS"), a("Wave", "PIKACHU WAVES")][roll % 4]
+            return [a("Wave", "MARILL WAVES"), a("Very Happy Marill", "HAPPY TO SEE YOU"),
+                    a("Very Friendly", "BEST PALS"), a("Wave", "MARILL WAVES")][roll % 4]
         case "FRIENDS":
-            return [a("Wave", "PIKACHU WAVES"), a("Come Here, Pikachu", "WELCOME BACK"),
-                    a("Greetings", "HELLO AGAIN"), a("Wave", "PIKACHU WAVES")][roll % 4]
+            return [a("Wave", "MARILL WAVES"), a("Come Here, Marill", "WELCOME BACK"),
+                    a("Greetings", "HELLO AGAIN"), a("Wave", "MARILL WAVES")][roll % 4]
         default:
-            return [a("Greetings", "PIKACHU LOOKS OVER"), a("Pikachu Walks", "PIKACHU WALKS"),
-                    a("Falls Over", "PIKACHU STUMBLES"), a("Greetings", "HELLO PIKACHU")][roll % 4]
+            return [a("Greetings", "MARILL LOOKS OVER"), a("Marill Walks", "MARILL WALKS"),
+                    a("Falls Over", "MARILL STUMBLES"), a("Greetings", "HELLO MARILL")][roll % 4]
         }
     }
 
     static func giftReaction(_ watts: Int) -> PikaActivity {
         let name: String
         switch watts {
-        case 0..<100: name = "Pikachu Yawn"
+        case 0..<100: name = "Marill Yawn"
         case 100..<200: name = "Thanks"
-        case 200..<400: name = "Happy Pikachu"
+        case 200..<400: name = "Happy Marill"
         case 400..<500: name = "Wink"
         default: name = "Thank You"
         }
-        return PikaActivity(keyword: name, fallback: "gift", title: "A PRESENT FOR PIKACHU")
+        return PikaActivity(keyword: name, fallback: "gift", title: "A PRESENT FOR MARILL")
     }
 }
 
@@ -165,15 +165,15 @@ struct PocketPikaView: View {
     @State private var worldClock = Date()
     @State private var greetingEnds: Date? = nil
     @State private var greetingNumber = 0
-    @AppStorage("pocket-pika-gs.scene-word") private var storedSceneWord = ""
-    @AppStorage("pocket-pika-gs.scene-fallback") private var storedSceneFallback = "idle"
-    @AppStorage("pocket-pika-gs.scene-expiry") private var storedSceneExpiry = 0.0
-    @AppStorage("pocket-pika-gs.scene-hour") private var storedSceneHour = -1
+    @AppStorage("pocket-marill-gs.scene-word") private var storedSceneWord = ""
+    @AppStorage("pocket-marill-gs.scene-fallback") private var storedSceneFallback = "idle"
+    @AppStorage("pocket-marill-gs.scene-expiry") private var storedSceneExpiry = 0.0
+    @AppStorage("pocket-marill-gs.scene-hour") private var storedSceneHour = -1
     @State private var giftReactionEnds: Date? = nil
     @State private var milestoneReactionEnds: Date? = nil
     @State private var milestoneCelebrated: Int = 0
     @State private var lastGiftWatts = 0
-    @AppStorage("pocket-pika-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
+    @AppStorage("pocket-marill-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
 
     var body: some View {
         GeometryReader { geometry in
@@ -224,7 +224,7 @@ struct PocketPikaView: View {
             chooseActivityIfNeeded()
             beginGreeting()
             await store.refresh()
-            if sprites.galleryCount == 0 { await sprites.syncFromSerebii() }
+            if sprites.galleryCount == 0 { await sprites.reloadBundledAnimations() }
             await sprites.syncMilestoneAnimations()
         }
         .onChange(of: store.latestDailyMilestone) { _, newest in
@@ -294,7 +294,7 @@ struct PocketPikaView: View {
                     .frame(width: 256, height: 193)
                     .padding(.horizontal, 11)
 
-                Text("POKÉMON PIKACHU 2")
+                Text("POCKET MARRIL")
                     .font(.system(size: 12, weight: .black, design: .rounded))
                     .tracking(0.7)
                     .foregroundStyle(ShellColor.bright)
@@ -312,10 +312,10 @@ struct PocketPikaView: View {
                 dpad
                     .frame(width: 124, alignment: .leading)
                 VStack(spacing: 5) {
-                    Image(systemName: "bolt.fill")
+                    Image(systemName: "drop.fill")
                         .font(.system(size: 36, weight: .black))
                         .rotationEffect(.degrees(-24))
-                    Text("PIKA")
+                    Text("MARILL")
                         .font(.system(size: 10, weight: .black, design: .monospaced))
                 }
                 .foregroundStyle(ShellColor.bezel.opacity(0.86))
@@ -336,7 +336,7 @@ struct PocketPikaView: View {
             .frame(height: 35)
 
             Spacer(minLength: 0)
-            Text("POCKET PIKA GS  ·  YELLOW v0.8.3")
+            Text("POCKET MARRIL  ·  v1.0")
                 .font(.system(size: 8, weight: .black, design: .monospaced))
                 .tracking(0.45)
                 .foregroundStyle(ShellColor.bezel.opacity(0.7))
@@ -362,7 +362,7 @@ struct PocketPikaView: View {
                             .font(.system(size: 11, weight: .heavy, design: .monospaced))
                             .foregroundStyle(ShellColor.ink.opacity(0.45))
                     }
-                    .accessibilityLabel("LCD asleep. Press A to wake Pikachu")
+                    .accessibilityLabel("LCD asleep. Press A to wake Marill")
             } else {
                 activeLCDScreen
             }
@@ -429,7 +429,7 @@ struct PocketPikaView: View {
             return PikaDailyLife.giftReaction(lastGiftWatts)
         }
         if let ends = milestoneReactionEnds, ends > worldClock {
-            return PikaActivity(keyword: "Very Happy Pikachu", fallback: "friend",
+            return PikaActivity(keyword: "Very Happy Marill", fallback: "friend",
                                 title: "\(milestoneCelebrated.formatted()) STEPS! AMAZING!")
         }
         let hour = Calendar.current.component(.hour, from: worldClock)
@@ -498,7 +498,7 @@ struct PocketPikaView: View {
                 } else {
                     VStack(spacing: 7) {
                         Image(systemName: "photo.artframe").font(.system(size: 31, weight: .light))
-                        Text(sprites.isSyncing ? "LOADING PIKACHU" : "START → SYNC GIFS")
+                        Text(sprites.isSyncing ? "LOADING MARILL" : "START → SYNC GIFS")
                             .font(.system(size: 10, weight: .heavy, design: .monospaced))
                     }
                 }
@@ -508,7 +508,7 @@ struct PocketPikaView: View {
                 Text(activity.title)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 1)
-                Text("\(store.watts) W")
+                Text("\(store.watts) Ice Water")
             }
             .font(.system(size: 9, weight: .heavy, design: .monospaced))
             .frame(height: 15)
@@ -523,7 +523,7 @@ struct PocketPikaView: View {
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                 Text(store.todaySteps.formatted())
                     .font(.system(size: 37, weight: .black, design: .monospaced))
-                Text("\(store.stepsToNextWatt) steps to next Watt")
+                Text("\(store.stepsToNextWatt) steps to next Ice Water")
                     .font(.system(size: 10, design: .monospaced))
             } else if stepsPage == 1 {
                 Text("LAST 7 DAYS")
@@ -564,7 +564,7 @@ struct PocketPikaView: View {
                 Image(systemName: "gift.fill").font(.system(size: 31))
                     .frame(height: 72)
             }
-            Text("\(giftAmount) W")
+            Text("\(giftAmount) Ice Water")
                 .font(.system(size: 24, weight: .black, design: .monospaced))
                 .lineLimit(1)
             Text("↑ MORE   ↓ LESS   A GIVE")
@@ -580,7 +580,7 @@ struct PocketPikaView: View {
                 .font(.system(size: 11, weight: .black, design: .monospaced))
             Text(store.currentlyPlaying ? String(store.currentCard) : "?")
                 .font(.system(size: 37, weight: .black, design: .monospaced))
-            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) W" : "A = START (5 W)")
+            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) Ice Water" : "A = START (5 Ice Water)")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
 
             if store.currentlyPlaying {
@@ -613,10 +613,10 @@ struct PocketPikaView: View {
     private var friendshipSpriteName: String {
         switch store.friendshipState {
         case "STRANGER": return "Poké Ball"
-        case "MEANIE": return "Grumpy Pikachu"
-        case "PLAYMATES": return "Friendly Pikachu"
+        case "MEANIE": return "Grumpy Marill"
+        case "PLAYMATES": return "Friendly Marill"
         case "FRIENDS": return "Very Friendly"
-        default: return "Very Happy Pikachu"
+        default: return "Very Happy Marill"
         }
     }
 
@@ -739,7 +739,7 @@ struct PocketPikaView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(HandheldPressStyle())
-        .accessibilityLabel(title == "SELECT" ? "Select: Pikachu friendship" : "Start: settings")
+        .accessibilityLabel(title == "SELECT" ? "Select: Marill friendship" : "Start: settings")
     }
 
     private func feedback() {
@@ -754,7 +754,7 @@ struct PocketPikaView: View {
     }
 
     private func tapA() {
-        // A wakes the LCD without also spending Watts or navigating.
+        // A wakes the LCD without also spending Ice Water or navigating.
         if lcdSleeping { feedback(); showGreetingAfterWake(); return }
         guard acceptButton() else { return }
         switch page {
@@ -788,7 +788,7 @@ struct PocketPikaView: View {
     }
 
     // Four easy destinations, with the original three icons on the LCD.
-    // Up/down only changes choices; Pikachu's activities are now autonomous.
+    // Up/down only changes choices; Marill's activities are now autonomous.
     private func tapDirection(_ direction: Direction) {
         guard acceptButton() else { return }
         switch direction {
@@ -800,7 +800,7 @@ struct PocketPikaView: View {
         case .up, .down:
             switch page {
             case .companion, .friend:
-                break // no manual GIF cycling on the living-Pikachu screen
+                break // no manual GIF cycling on the living-Marill screen
             case .steps:
                 stepsPage = (stepsPage + (direction == .down ? 1 : 2)) % 3
             case .presents:
@@ -818,10 +818,10 @@ struct PocketPikaView: View {
 
     private var expandedPanel: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("POCKET PIKA GS")
+            Text("POCKET MARRIL")
                 .font(.system(size: 25, weight: .black, design: .rounded))
                 .foregroundStyle(ShellColor.bright)
-            Text("\(sprites.galleryCount) original GS animations available")
+            Text("\(sprites.galleryCount) Marill sprites available")
                 .font(.system(size: 12, design: .monospaced))
                 .foregroundStyle(ShellColor.bright.opacity(0.85))
             Text("Your digital walking companion")
@@ -829,7 +829,7 @@ struct PocketPikaView: View {
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             HStack(spacing: 10) {
                 statCard("STEPS", store.todaySteps.formatted())
-                statCard("WATTS", store.watts.formatted())
+                statCard("ICE WATER", store.watts.formatted())
             }
             HStack(spacing: 10) {
                 statCard("FRIEND", store.friendshipState)
@@ -884,7 +884,7 @@ struct PocketPikaView: View {
                                 in: RoundedRectangle(cornerRadius: 9))
                 }
             }
-            Text("10K+ unlocks occasional special Pikachu activities. Milestones reset daily; Watts still come only from steps.")
+            Text("10K+ unlocks occasional special Marill activities. Milestones reset daily; Ice Water still come only from steps.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.7))
         }
@@ -901,7 +901,7 @@ struct PocketPikaView: View {
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             if store.diaryEntries.isEmpty {
-                Text("Check in, go walking or give Pikachu a gift to start the diary.")
+                Text("Check in, go walking or give Marill a gift to start the diary.")
                     .font(.system(size: 12, design: .rounded))
                     .foregroundStyle(ShellColor.bright.opacity(0.75))
             } else {
@@ -993,7 +993,7 @@ private struct StepSourceSheet: View {
                     Spacer()
                     if showDismiss { Button("Close") { dismiss() } }
                 }
-                Text("Choose a source to earn one Watt for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
+                Text("Choose a source to earn one Ice Water for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
                     .font(.system(size: 13, design: .rounded))
 
                 Button {
@@ -1035,7 +1035,7 @@ private struct StepSourceSheet: View {
                     .buttonStyle(.borderedProminent)
                     .disabled(store.sourceName == "Not connected" || store.isRequestingHealth)
 
-                Text("Health read permission is private: a completed request does not prove access was granted. If the count stays at zero, check Health → Data Access & Devices → Pocket Pika GS, or use Motion.")
+                Text("Health read permission is private: a completed request does not prove access was granted. If the count stays at zero, check Health → Data Access & Devices → Pocket Marril, or use Motion.")
                     .font(.system(size: 11, design: .rounded))
                     .foregroundStyle(.secondary)
             }
@@ -1051,8 +1051,8 @@ private struct DeviceOptionsSheet: View {
     @State private var selectedSlot = "idle"
     @State private var pickingFile = false
     @State private var showingSource = false
-    @AppStorage("pocket-pika-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
-    @AppStorage("pocket-pika-gs.sound-enabled") private var soundEnabled = true
+    @AppStorage("pocket-marill-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
+    @AppStorage("pocket-marill-gs.sound-enabled") private var soundEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -1064,15 +1064,15 @@ private struct DeviceOptionsSheet: View {
                     Button("Change step source") { showingSource = true }
                     Button("Refresh now") { Task { await store.refresh() } }
                 }
-                Section("ORIGINAL GS GIF GALLERY") {
+                Section("MARILL SPRITE GALLERY") {
                     LabeledContent("Gallery", value: "\(sprites.galleryCount) animations")
                     if sprites.isSyncing { ProgressView("Downloading GIFs") }
                     Text(sprites.syncStatus).font(.footnote)
-                    Button("Download or refresh original GIFs") {
-                        Task { await sprites.syncFromSerebii() }
+                    Button("Reload animations") {
+                        Task { await sprites.reloadBundledAnimations() }
                     }
                     .disabled(sprites.isSyncing)
-                    Text("Animations are downloaded from the Serebii Pocket Pikachu 2 guide to local storage. A network connection is needed on first setup; subsequent playback works offline.")
+                    Text("Your approved blue Marill animations are included and work offline.")
                         .font(.footnote)
                     Text("You can also import a GIF or PNG to override the selected scene; pixel scaling stays crisp.")
                         .font(.footnote)
@@ -1086,19 +1086,19 @@ private struct DeviceOptionsSheet: View {
                     if let message = sprites.errorMessage {
                         Text(message).foregroundStyle(.red)
                     }
-                    Text("GS artwork is from the linked Serebii gallery, as authorized for this project. The Pokémon character remains owned by its rights holders.")
+                    Text("48 approved two-pose animations cover greetings, daily routines, friendship, gifts and special activities.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("ORIGINAL DEVICE BEHAVIOR") {
                     Toggle("Device-style sound effects", isOn: $soundEnabled)
                     Toggle("Virtual LCD sleep (75 seconds)", isOn: $virtualLCDSleep)
-                    Text("Pikachu greets you on opening, then performs activities at their documented original times. The virtual LCD can go dark until you press A, but iOS controls the actual phone display and background execution.")
+                    Text("Marill greets you on opening, then performs activities at their documented original times. The virtual LCD can go dark until you press A, but iOS controls the actual phone display and background execution.")
                         .font(.footnote)
                     Text("Five GS friendship states use estimated numeric cutoffs. CUSTOM CARE: under 3,000 steps in a day costs 550 goodwill, and missing that day's app check-in costs 150 more. Only completed days are reviewed. Walking milestones at 3K/5K/10K/15K/20K/25K are custom, with occasional rare activities after 10K; the original GS firmware randomizer is undocumented. Sound effects are synthesized. No alarm, backup export, or IR transfer is included.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
                 Section("CONTROLS") {
-                    Text("LEFT / RIGHT: Screens. UP / DOWN: Options. A: Confirm or wake screen. B: Back. SELECT: Friendship. START: Settings. Pikachu follows the original time-of-day routine automatically.")
+                    Text("LEFT / RIGHT: Screens. UP / DOWN: Options. A: Confirm or wake screen. B: Back. SELECT: Friendship. START: Settings. Marill follows the original time-of-day routine automatically.")
                         .font(.footnote)
                 }
             }
@@ -1117,3 +1117,4 @@ private struct DeviceOptionsSheet: View {
         }
     }
 }
+
