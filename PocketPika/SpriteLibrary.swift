@@ -59,7 +59,7 @@ final class SpriteLibrary: ObservableObject {
         ("bath", "Bath / Evening"),
         ("sleep", "Sleeping"),
         ("friend", "Friendship"),
-        ("gift", "Giving Ice Water")
+        ("gift", "Giving Ice Cubes")
     ]
     private static let pageURL = URL(string: "https://pokestats.gg/sprites/marill")!
     // Requested custom milestone scenes. They may be outside the first 45
@@ -226,4 +226,5 @@ struct AnimatedPixelSprite: View {
         }
     }
 }
+
 

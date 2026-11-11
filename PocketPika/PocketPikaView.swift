@@ -160,6 +160,7 @@ struct PocketPikaView: View {
     @State private var guessHigher = true
     @State private var showingSetup = false
     @State private var showingOptions = false
+    @State private var showingBreakdown = false
     @State private var lcdSleeping = false
     @State private var lastButtonPress = Date()
     @State private var worldClock = Date()
@@ -217,6 +218,33 @@ struct PocketPikaView: View {
         .sheet(isPresented: $showingOptions) {
             DeviceOptionsSheet(store: store, sprites: sprites)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(isPresented: $showingBreakdown) {
+            NavigationStack {
+                ScrollView {
+                    expandedPanel
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+                        .padding(.bottom, 24)
+                }
+                .background(ShellColor.back.ignoresSafeArea())
+                .toolbar {
+                    ToolbarItem(placement: .principal) {
+                        Text("POCKET MARRIL DATA")
+                            .font(.system(size: 14, weight: .black, design: .rounded))
+                            .foregroundStyle(ShellColor.bright)
+                    }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") { showingBreakdown = false }
+                            .foregroundStyle(ShellColor.caseBright)
+                    }
+                }
+                .toolbarBackground(ShellColor.back, for: .navigationBar)
+                .toolbarColorScheme(.dark, for: .navigationBar)
+            }
+            .presentationDetents([.large])
+            .presentationDragIndicator(.visible)
+            .presentationBackground(ShellColor.back)
         }
         .task {
             store.recordVisit()
@@ -374,9 +402,18 @@ struct PocketPikaView: View {
 
     private var activeLCDScreen: some View {
         VStack(spacing: 0) {
-            HStack {
+            HStack(spacing: 6) {
                 Text(page.label)
-                Spacer()
+                Button {
+                    if acceptButton() { showingBreakdown = true }
+                } label: {
+                    Image(systemName: "chart.bar.fill")
+                        .font(.system(size: 10, weight: .black))
+                        .frame(width: 20, height: 19)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("View all data and friendship diary")
+                Spacer(minLength: 2)
                 TimelineView(.periodic(from: .now, by: 60)) { timeline in
                     Text(timeline.date, format: .dateTime.hour().minute())
                 }
@@ -508,7 +545,7 @@ struct PocketPikaView: View {
                 Text(activity.title)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 1)
-                Text("\(store.watts) Ice Water")
+                Text("\(store.watts) Ice Cubes")
             }
             .font(.system(size: 9, weight: .heavy, design: .monospaced))
             .frame(height: 15)
@@ -523,7 +560,7 @@ struct PocketPikaView: View {
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                 Text(store.todaySteps.formatted())
                     .font(.system(size: 37, weight: .black, design: .monospaced))
-                Text("\(store.stepsToNextWatt) steps to next Ice Water")
+                Text("\(store.stepsToNextWatt) steps to next Ice Cube")
                     .font(.system(size: 10, design: .monospaced))
             } else if stepsPage == 1 {
                 Text("LAST 7 DAYS")
@@ -564,7 +601,7 @@ struct PocketPikaView: View {
                 Image(systemName: "gift.fill").font(.system(size: 31))
                     .frame(height: 72)
             }
-            Text("\(giftAmount) Ice Water")
+            Text("\(giftAmount) Ice Cubes")
                 .font(.system(size: 24, weight: .black, design: .monospaced))
                 .lineLimit(1)
             Text("↑ MORE   ↓ LESS   A GIVE")
@@ -580,7 +617,7 @@ struct PocketPikaView: View {
                 .font(.system(size: 11, weight: .black, design: .monospaced))
             Text(store.currentlyPlaying ? String(store.currentCard) : "?")
                 .font(.system(size: 37, weight: .black, design: .monospaced))
-            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) Ice Water" : "A = START (5 Ice Water)")
+            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) Ice Cubes" : "A = START (5 Ice Cubes)")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
 
             if store.currentlyPlaying {
@@ -754,7 +791,7 @@ struct PocketPikaView: View {
     }
 
     private func tapA() {
-        // A wakes the LCD without also spending Ice Water or navigating.
+        // A wakes the LCD without also spending Ice Cubes or navigating.
         if lcdSleeping { feedback(); showGreetingAfterWake(); return }
         guard acceptButton() else { return }
         switch page {
@@ -829,7 +866,7 @@ struct PocketPikaView: View {
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             HStack(spacing: 10) {
                 statCard("STEPS", store.todaySteps.formatted())
-                statCard("ICE WATER", store.watts.formatted())
+                statCard("ICE CUBES", store.watts.formatted())
             }
             HStack(spacing: 10) {
                 statCard("FRIEND", store.friendshipState)
@@ -884,7 +921,7 @@ struct PocketPikaView: View {
                                 in: RoundedRectangle(cornerRadius: 9))
                 }
             }
-            Text("10K+ unlocks occasional special Marill activities. Milestones reset daily; Ice Water still come only from steps.")
+            Text("10K+ unlocks occasional special Marill activities. Milestones reset daily; Ice Cubes still come only from steps.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.7))
         }
@@ -897,7 +934,7 @@ struct PocketPikaView: View {
             Label("FRIENDSHIP DIARY", systemImage: "book.closed.fill")
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .foregroundStyle(ShellColor.bright)
-            Text("Only visible when your Duo is open")
+            Text("Diary and gift history")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             if store.diaryEntries.isEmpty {
@@ -993,7 +1030,7 @@ private struct StepSourceSheet: View {
                     Spacer()
                     if showDismiss { Button("Close") { dismiss() } }
                 }
-                Text("Choose a source to earn one Ice Water for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
+                Text("Choose a source to earn one Ice Cube for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
                     .font(.system(size: 13, design: .rounded))
 
                 Button {
@@ -1117,4 +1154,5 @@ private struct DeviceOptionsSheet: View {
         }
     }
 }
+
 

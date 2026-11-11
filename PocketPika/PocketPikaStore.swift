@@ -41,7 +41,7 @@ private struct PikaSave: Codable {
     var friendshipCheckedOn: Date? = nil
     // Local calendar-day check-ins. Optional for backward-compatible v0.8 saves.
     var visitedDays: [Date]? = nil
-    // Optional fields ensure upgrades retain existing Health, Ice Water and friendship data.
+    // Optional fields ensure upgrades retain existing Health, Ice Cubes and friendship data.
     var diaryEntries: [PikaDiaryEntry]? = nil
     var dailyMilestoneDate: Date? = nil
     var dailyMilestoneLevels: [Int]? = nil
@@ -98,7 +98,7 @@ final class PocketPikaStore: ObservableObject {
     private let lowStepFriendshipPenalty = 550
     private let missedVisitFriendshipPenalty = 150
 
-    // CUSTOM, one-time-per-day milestones. No bonus Ice Water: 20 steps = 1 Ice Water remains unchanged.
+    // CUSTOM, one-time-per-day milestones. No bonus Ice Cubes: 20 steps = 1 Ice Cube remains unchanged.
     let dailyMilestoneTargets: [Int] = [3_000, 5_000, 10_000, 15_000, 20_000, 25_000]
     private let lifetimeMilestoneTargets: [Int] = [5_000, 25_000, 100_000, 150_000, 300_000, 1_000_000]
 
@@ -109,7 +109,7 @@ final class PocketPikaStore: ObservableObject {
         } else {
             game = PikaSave()
         }
-        // Preserve the previous Ice Water bank/step history and map existing friendliness.
+        // Preserve the previous Ice Cubes bank/step history and map existing friendliness.
         if game.friendshipPoints == nil {
             game.friendshipPoints = game.giftsGiven == 0
                 ? 0 : min(7_000, max(-1_500, (game.friendship - 10) * 50))
@@ -252,25 +252,25 @@ final class PocketPikaStore: ObservableObject {
         game.healthRecorded = 0
         game.motionCursor = game.sourceBegan
         // Switching step providers must not erase yesterday's care check.
-        message = "Connected. Your next steps will earn Ice Water!"
+        message = "Connected. Your next steps will earn Ice Cubes!"
         persist()
     }
 
     func giveWatts(_ amount: Int) {
         guard amount > 0 else { return }
         guard game.watts >= amount else {
-            message = "Not enough Ice Water yet. Let's walk!"
+            message = "Not enough Ice Cubes yet. Let's walk!"
             return
         }
         game.watts -= amount
-        // One gift Ice Water earns approximately one goodwill point. The original
+        // Each Ice Cube gift earns approximately one goodwill point. The original
         // GS conversion curve is undocumented; larger gifts naturally add more.
         game.friendshipPoints = min(8_000, (game.friendshipPoints ?? 0) + amount)
         game.giftsGiven += amount
         game.lastGift = Date()
-        message = "Marill received \(amount) Ice Water! \(Self.state(for: game.friendshipPoints ?? 0))."
+        message = "Marill received \(amount) Ice Cubes! \(Self.state(for: game.friendshipPoints ?? 0))."
         addDiary(title: "You gave Marill a gift",
-                 detail: "Spent \(amount.formatted()) Ice Water. Friendship is now \(Self.state(for: game.friendshipPoints ?? 0)).",
+                 detail: "Spent \(amount.formatted()) Ice Cubes. Friendship is now \(Self.state(for: game.friendshipPoints ?? 0)).",
                  icon: "gift.fill", friendshipChange: amount)
         persist()
     }
@@ -280,7 +280,7 @@ final class PocketPikaStore: ObservableObject {
 
     func startCardGame() {
         guard !currentlyPlaying else { return }
-        guard game.watts >= 5 else { message = "The card game needs 5 Ice Water."; return }
+        guard game.watts >= 5 else { message = "The card game needs 5 Ice Cubes."; return }
         game.watts -= 5
         game.currentCard = Int.random(in: 2...14)
         game.pendingWin = 0
@@ -319,11 +319,11 @@ final class PocketPikaStore: ObservableObject {
         game.currentCard = 0
         game.pendingWin = 0
         game.streak = 0
-        lastCardResult = "You banked \(prize) Ice Water. Nice!"
+        lastCardResult = "You banked \(prize) Ice Cubes. Nice!"
         persist()
     }
 
-    // Bank the current pot when navigating away; never silently lose earned Ice Water.
+    // Bank the current pot when navigating away; never silently lose earned Ice Cubes.
     func leaveCardGame() {
         if currentlyPlaying { bankWin() }
     }
@@ -409,7 +409,7 @@ final class PocketPikaStore: ObservableObject {
         let newWatts = game.lifetimeSteps / 20
         let delta = newWatts - oldWatts
         game.watts += delta
-        if delta > 0 { message = "\(newSteps.formatted()) new steps! +\(delta) Ice Water." }
+        if delta > 0 { message = "\(newSteps.formatted()) new steps! +\(delta) Ice Cubes." }
         for goal in lifetimeMilestoneTargets where previousLifetime < goal && game.lifetimeSteps >= goal {
             addDiary(title: "\(goal.formatted()) lifetime steps!",
                      detail: goal == 1_000_000
@@ -635,4 +635,5 @@ final class PocketPikaStore: ObservableObject {
         }
     }
 }
+
 
