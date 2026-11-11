@@ -19,15 +19,20 @@ targets:
       - path: PocketPika
         excludes:
           - '*.entitlements'
+          - MarillGallery
+      - path: PocketPika/MarillGallery
+        type: folder
+        buildPhase: resources
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.noggle040.pocketpikags
+        PRODUCT_BUNDLE_IDENTIFIER: com.noggle040.pocketmarillgs
         PRODUCT_NAME: PocketPika
         CODE_SIGN_ENTITLEMENTS: PocketPika/PocketPika.entitlements
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        INFOPLIST_KEY_CFBundleDisplayName: 'Pocket Pika GS'
-        INFOPLIST_KEY_NSHealthShareUsageDescription: 'Pocket Pika uses the steps you permit in Apple Health to award Watts for walking.'
-        INFOPLIST_KEY_NSMotionUsageDescription: 'Pocket Pika uses iPhone motion steps to power your walking companion.'
+        INFOPLIST_KEY_CFBundleDisplayName: 'Pocket Marril'
+        INFOPLIST_KEY_NSHealthShareUsageDescription: 'Pocket Marril uses the steps you permit in Apple Health to award Ice Water for walking.'
+        INFOPLIST_KEY_NSMotionUsageDescription: 'Pocket Marril uses iPhone motion steps to power your walking companion.'
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: 'YES'
         INFOPLIST_KEY_UILaunchScreen_Generation: 'YES'
         SUPPORTS_MACCATALYST: 'NO'
+
