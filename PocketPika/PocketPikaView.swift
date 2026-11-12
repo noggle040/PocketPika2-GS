@@ -161,6 +161,9 @@ struct PocketPikaView: View {
     @State private var showingSetup = false
     @State private var showingOptions = false
     @State private var showingFriendshipDiary = false
+    @State private var showingCardGame = false
+    @State private var cardReaction = ""
+    @State private var cardReactionUntil = Date.distantPast
     @State private var lcdSleeping = false
     @State private var lastButtonPress = Date()
     @State private var worldClock = Date()
@@ -218,6 +221,12 @@ struct PocketPikaView: View {
         .sheet(isPresented: $showingOptions) {
             DeviceOptionsSheet(store: store, sprites: sprites)
                 .presentationDetents([.medium, .large])
+        }
+        .fullScreenCover(isPresented: $showingCardGame, onDismiss: {
+            store.leaveCardGame()
+            page = .companion
+        }) {
+            fullScreenCardGame
         }
         .sheet(isPresented: $showingFriendshipDiary) {
             ScrollView {
@@ -598,6 +607,95 @@ struct PocketPikaView: View {
         .frame(width: 242, height: 140)
     }
 
+    private var fullScreenCardGame: some View {
+        GeometryReader { geo in
+            ZStack {
+                LinearGradient(colors: [ShellColor.back, Color(red: 0.04, green: 0.29, blue: 0.57), ShellColor.back], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    .ignoresSafeArea()
+                VStack(spacing: 0) {
+                    HStack {
+                        Button {
+                            showingCardGame = false
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 20, weight: .black))
+                                .foregroundStyle(ShellColor.ink)
+                                .frame(width: 48, height: 48)
+                                .background(ShellColor.bright, in: Circle())
+                        }
+                        Spacer()
+                        Text("POCKET MARRIL").font(.system(size: 22, weight: .black, design: .rounded)).tracking(2)
+                        Spacer()
+                        Image(systemName: "suit.spade.fill").font(.system(size: 28, weight: .black)).foregroundStyle(ShellColor.caseBright).frame(width: 48)
+                    }
+                    .foregroundStyle(ShellColor.bright)
+                    .padding(.horizontal, 20).padding(.top, 12)
+                    Text("HIGHER OR LOWER").font(.system(size: 20, weight: .black, design: .monospaced)).foregroundStyle(ShellColor.bright).padding(.top, 18)
+                    Text("POT  ·  \(store.pendingWin) ICE CUBES     STREAK  \(store.currentlyPlaying ? store.pendingWin : 0)")
+                        .font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundStyle(ShellColor.bright.opacity(0.85)).padding(.top, 5)
+                    Spacer(minLength: 10)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 32).fill(LinearGradient(colors: [.white, Color(red: 0.82, green: 0.93, blue: 1)], startPoint: .topLeading, endPoint: .bottomTrailing)).shadow(color: .black.opacity(0.22), radius: 15, y: 8)
+                        VStack {
+                            HStack { Text(store.currentlyPlaying ? "\(store.currentCard)" : "?").font(.system(size: 76, weight: .black, design: .rounded)); Spacer(); Image(systemName: "suit.spade.fill").font(.system(size: 44)) }
+                            Spacer()
+                            Image(systemName: "suit.spade.fill").font(.system(size: 105))
+                            Spacer()
+                            HStack { Image(systemName: "suit.spade.fill").font(.system(size: 36)); Spacer(); Text("\(store.pendingWin) ICE CUBES").font(.system(size: 18, weight: .black, design: .monospaced)) }
+                        }
+                        .foregroundStyle(ShellColor.ink).padding(30)
+                    }
+                    .frame(width: min(geo.size.width - 56, 350), height: min(geo.size.height * 0.40, 390))
+                    Spacer(minLength: 8)
+                    Group {
+                        if Date() < cardReactionUntil, let sprite = sprites.animation(named: cardReaction, fallbackSlot: "friend") {
+                            AnimatedPixelSprite(animation: sprite).id(cardReaction)
+                        } else if let sprite = sprites.animation(named: "Wave", fallbackSlot: "idle") {
+                            AnimatedPixelSprite(animation: sprite).id("card-idle")
+                        } else { Image(systemName: "drop.fill").font(.system(size: 50)) }
+                    }
+                    .frame(width: min(geo.size.width * 0.55, 220), height: min(geo.size.height * 0.19, 170))
+                    .clipped()
+                    Text(store.lastCardResult.isEmpty ? "Guess higher or lower. Equal cards win!" : store.lastCardResult)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(ShellColor.bright).lineLimit(2).frame(height: 44).padding(.horizontal, 20)
+                    HStack(spacing: 12) {
+                        cardChoiceButton("↓  LOWER", color: Color(red: 0.17, green: 0.59, blue: 0.91)) { makeCardGuess(false) }
+                        cardChoiceButton("↑  HIGHER", color: Color(red: 0.12, green: 0.43, blue: 0.78)) { makeCardGuess(true) }
+                    }.frame(height: 78).padding(.horizontal, 18)
+                    Button {
+                        if store.currentlyPlaying { store.bankWin() } else { store.startCardGame() }
+                        feedback()
+                    } label: {
+                        Text(store.currentlyPlaying ? "BANK \(store.pendingWin) ICE CUBES" : "START · 5 ICE CUBES")
+                            .font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(ShellColor.bright)
+                            .frame(maxWidth: .infinity).frame(height: 62).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18)).overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.35), lineWidth: 1.5))
+                    }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, max(geo.safeAreaInsets.bottom, 16))
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func cardChoiceButton(_ title: String, color: Color, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.system(size: 19, weight: .black, design: .rounded)).foregroundStyle(.white)
+                .frame(maxWidth: .infinity).frame(height: 72).background(color, in: RoundedRectangle(cornerRadius: 24))
+        }.buttonStyle(.plain)
+    }
+
+    private func makeCardGuess(_ higher: Bool) {
+        guard store.currentlyPlaying else { store.startCardGame(); return }
+        store.guess(higher)
+        let result = store.lastCardResult
+        if result.contains("Correct") {
+            cardReaction = ["Marill Card Flop", "Grumpy Marill", "Game loss"].randomElement() ?? "Grumpy Marill"
+        } else {
+            cardReaction = ["Happy Marill", "Very Happy Marill", "Game win"].randomElement() ?? "Happy Marill"
+        }
+        cardReactionUntil = Date().addingTimeInterval(3.2)
+        PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
+    }
+
     private var cardScreen: some View {
         VStack(spacing: 2) {
             Text("HIGHER OR LOWER")
@@ -778,6 +876,7 @@ struct PocketPikaView: View {
         if page == .cards && next != .cards { store.leaveCardGame() }
         page = next
         if next == .options { showingOptions = true }
+        if next == .cards { showingCardGame = true }
     }
 
     private func tapA() {
