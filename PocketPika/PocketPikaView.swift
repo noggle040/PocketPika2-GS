@@ -160,19 +160,16 @@ struct PocketPikaView: View {
     @State private var guessHigher = true
     @State private var showingSetup = false
     @State private var showingOptions = false
-    @State private var showingBreakdown = false
-    @State private var showingCardGame = false
+    @State private var showingFriendshipDiary = false
     @State private var lcdSleeping = false
     @State private var lastButtonPress = Date()
     @State private var worldClock = Date()
     @State private var greetingEnds: Date? = nil
     @State private var greetingNumber = 0
-    @State private var birthdayCelebrationEnds: Date? = nil
     @AppStorage("pocket-marill-gs.scene-word") private var storedSceneWord = ""
     @AppStorage("pocket-marill-gs.scene-fallback") private var storedSceneFallback = "idle"
     @AppStorage("pocket-marill-gs.scene-expiry") private var storedSceneExpiry = 0.0
     @AppStorage("pocket-marill-gs.scene-hour") private var storedSceneHour = -1
-    @AppStorage("pocket-marill-gs.birthday-month-day") private var birthdayMonthDay = ""
     @State private var giftReactionEnds: Date? = nil
     @State private var milestoneReactionEnds: Date? = nil
     @State private var milestoneCelebrated: Int = 0
@@ -222,46 +219,26 @@ struct PocketPikaView: View {
             DeviceOptionsSheet(store: store, sprites: sprites)
                 .presentationDetents([.medium, .large])
         }
-        .sheet(isPresented: $showingBreakdown) {
-            NavigationStack {
-                ScrollView {
-                    expandedPanel
-                        .padding(.horizontal, 16)
-                        .padding(.top, 12)
-                        .padding(.bottom, 24)
+        .sheet(isPresented: $showingFriendshipDiary) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("POCKET MARRIL")
+                        .font(.system(size: 22, weight: .black, design: .rounded))
+                        .foregroundStyle(ShellColor.bright)
+                    statCard("FRIEND", store.friendshipState)
+                    unfoldedFriendshipDiary
                 }
-                .background(ShellColor.back.ignoresSafeArea())
-                .toolbar {
-                    ToolbarItem(placement: .principal) {
-                        Text("POCKET MARRIL DATA")
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(ShellColor.bright)
-                    }
-                    ToolbarItem(placement: .topBarTrailing) {
-                        Button("Done") { showingBreakdown = false }
-                            .foregroundStyle(ShellColor.caseBright)
-                    }
-                }
-                .toolbarBackground(ShellColor.back, for: .navigationBar)
-                .toolbarColorScheme(.dark, for: .navigationBar)
+                .padding(18)
             }
+            .background(ShellColor.back.ignoresSafeArea())
             .presentationDetents([.large])
             .presentationDragIndicator(.visible)
-            .presentationBackground(ShellColor.back)
-        }
-        .fullScreenCover(isPresented: $showingCardGame) {
-            FullScreenCardGameView(store: store, sprites: sprites) {
-                showingCardGame = false
-                page = .companion
-            }
-            .ignoresSafeArea()
         }
         .task {
             store.recordVisit()
             if store.sourceName == "Not connected" { showingSetup = true }
             chooseActivityIfNeeded()
             beginGreeting()
-            beginBirthdayCelebrationIfToday()
             await store.refresh()
             if sprites.galleryCount == 0 { await sprites.reloadBundledAnimations() }
             await sprites.syncMilestoneAnimations()
@@ -280,7 +257,6 @@ struct PocketPikaView: View {
                 lcdSleeping = false
                 chooseActivityIfNeeded()
                 beginGreeting()
-                beginBirthdayCelebrationIfToday()
                 Task { await store.refresh() }
             }
         }
@@ -351,15 +327,23 @@ struct PocketPikaView: View {
             HStack(alignment: .center, spacing: 0) {
                 dpad
                     .frame(width: 124, alignment: .leading)
-                VStack(spacing: 5) {
-                    Image(systemName: "drop.fill")
-                        .font(.system(size: 36, weight: .black))
-                        .rotationEffect(.degrees(-24))
-                    Text("MARILL")
-                        .font(.system(size: 10, weight: .black, design: .monospaced))
+                Button {
+                    showingFriendshipDiary = true
+                    feedback()
+                } label: {
+                    VStack(spacing: 5) {
+                        Image(systemName: "drop.fill")
+                            .font(.system(size: 36, weight: .black))
+                            .rotationEffect(.degrees(-24))
+                        Text("MARILL")
+                            .font(.system(size: 10, weight: .black, design: .monospaced))
+                    }
+                    .foregroundStyle(ShellColor.bezel.opacity(0.86))
+                    .frame(width: 67, height: 90)
+                    .contentShape(Rectangle())
                 }
-                .foregroundStyle(ShellColor.bezel.opacity(0.86))
-                .frame(width: 67)
+                .buttonStyle(.plain)
+                .accessibilityLabel("Open Marill friendship diary")
                 VStack(spacing: 13) {
                     circleButton("A", size: 52, action: tapA)
                     circleButton("B", size: 39, action: tapB)
@@ -414,18 +398,9 @@ struct PocketPikaView: View {
 
     private var activeLCDScreen: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
+            HStack {
                 Text(page.label)
-                Button {
-                    if acceptButton() { showingBreakdown = true }
-                } label: {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 10, weight: .black))
-                        .frame(width: 20, height: 19)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("View all data and friendship diary")
-                Spacer(minLength: 2)
+                Spacer()
                 TimelineView(.periodic(from: .now, by: 60)) { timeline in
                     Text(timeline.date, format: .dateTime.hour().minute())
                 }
@@ -474,9 +449,6 @@ struct PocketPikaView: View {
     }
 
     private var displayedActivity: PikaActivity {
-        if birthdayCelebrationEnds.map({ $0 > worldClock }) == true {
-            return PikaActivity(keyword: "Very Happy Marill", fallback: "friend", title: "HAPPY BIRTHDAY!")
-        }
         if let ends = giftReactionEnds, ends > worldClock {
             return PikaDailyLife.giftReaction(lastGiftWatts)
         }
@@ -496,20 +468,6 @@ struct PocketPikaView: View {
                                        steps: store.lifetimeSteps, todaySteps: store.todaySteps)
     }
 
-    private var isUsersBirthdayToday: Bool {
-        guard birthdayMonthDay.count == 5 else { return false }
-        let components = Calendar.current.dateComponents([.month, .day], from: Date())
-        guard let month = components.month, let day = components.day else { return false }
-        return birthdayMonthDay == String(format: "%02d-%02d", month, day)
-    }
-
-    private func beginBirthdayCelebrationIfToday() {
-        worldClock = Date()
-        if isUsersBirthdayToday {
-            birthdayCelebrationEnds = Date().addingTimeInterval(12)
-        }
-    }
-
     private func chooseActivityIfNeeded() {
         let now = Date()
         let hour = Calendar.current.component(.hour, from: now)
@@ -524,7 +482,11 @@ struct PocketPikaView: View {
         storedSceneExpiry = now.addingTimeInterval(Double(Int.random(in: 100...300))).timeIntervalSince1970
     }
 
-
+    private func beginGreeting() {
+        worldClock = Date()
+        greetingNumber = Int.random(in: 0..<100)
+        greetingEnds = Date().addingTimeInterval(6)
+    }
 
     // Only A wakes the original device's LCD. The other buttons are ignored
     // while the virtual screen is asleep.
@@ -537,12 +499,6 @@ struct PocketPikaView: View {
         }
         lastButtonPress = Date()
         return true
-    }
-
-    private func beginGreeting() {
-        worldClock = Date()
-        greetingNumber = Int.random(in: 0..<100)
-        greetingEnds = Date().addingTimeInterval(6)
     }
 
     private func showGreetingAfterWake() {
@@ -571,17 +527,12 @@ struct PocketPikaView: View {
                     }
                 }
             }
-            .overlay {
-                if birthdayCelebrationEnds.map({ $0 > worldClock }) == true {
-                    BirthdayCelebrationOverlay()
-                }
-            }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             HStack(spacing: 4) {
                 Text(activity.title)
                     .lineLimit(1).minimumScaleFactor(0.6)
                 Spacer(minLength: 1)
-                Text("\(store.watts) Ice Cubes")
+                Text("\(store.watts) Ice Water")
             }
             .font(.system(size: 9, weight: .heavy, design: .monospaced))
             .frame(height: 15)
@@ -596,7 +547,7 @@ struct PocketPikaView: View {
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                 Text(store.todaySteps.formatted())
                     .font(.system(size: 37, weight: .black, design: .monospaced))
-                Text("\(store.stepsToNextWatt) steps to next Ice Cube")
+                Text("\(store.stepsToNextWatt) steps to next Ice Water")
                     .font(.system(size: 10, design: .monospaced))
             } else if stepsPage == 1 {
                 Text("LAST 7 DAYS")
@@ -637,7 +588,7 @@ struct PocketPikaView: View {
                 Image(systemName: "gift.fill").font(.system(size: 31))
                     .frame(height: 72)
             }
-            Text("\(giftAmount) Ice Cubes")
+            Text("\(giftAmount) Ice Water")
                 .font(.system(size: 24, weight: .black, design: .monospaced))
                 .lineLimit(1)
             Text("↑ MORE   ↓ LESS   A GIVE")
@@ -648,39 +599,42 @@ struct PocketPikaView: View {
     }
 
     private var cardScreen: some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             Text("HIGHER OR LOWER")
-                .font(.system(size: 11, weight: .black, design: .monospaced))
+                .font(.system(size: 10, weight: .black, design: .monospaced))
+                .lineLimit(1).minimumScaleFactor(0.8)
             Text(store.currentlyPlaying ? String(store.currentCard) : "?")
-                .font(.system(size: 37, weight: .black, design: .monospaced))
-            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) Ice Cubes" : "A = START (5 Ice Cubes)")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-
+                .font(.system(size: 31, weight: .black, design: .monospaced))
+                .frame(height: 40)
+            Text(store.currentlyPlaying ? "POT: \(store.pendingWin) ICE CUBES" : "A = START · 5 ICE CUBES")
+                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                .lineLimit(1).minimumScaleFactor(0.75)
             if store.currentlyPlaying {
-                HStack(spacing: 8) {
+                HStack(spacing: 6) {
                     Text("↑ HIGHER")
                         .foregroundStyle(guessHigher ? ShellColor.lcd : ShellColor.ink)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(guessHigher ? ShellColor.ink : Color.clear, in: RoundedRectangle(cornerRadius: 4))
                     Text("↓ LOWER")
                         .foregroundStyle(!guessHigher ? ShellColor.lcd : ShellColor.ink)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
+                        .padding(.horizontal, 6).padding(.vertical, 3)
                         .background(!guessHigher ? ShellColor.ink : Color.clear, in: RoundedRectangle(cornerRadius: 4))
                 }
-                .font(.system(size: 9, weight: .heavy, design: .monospaced))
-                Text("A GUESS   B BANK & EXIT")
-                    .font(.system(size: 8, design: .monospaced))
+                .font(.system(size: 8, weight: .heavy, design: .monospaced))
+                Text("A GUESS · B BANK")
+                    .font(.system(size: 7, weight: .medium, design: .monospaced))
             }
             if !store.lastCardResult.isEmpty {
                 Text(store.lastCardResult)
-                    .font(.system(size: 8, design: .monospaced))
+                    .font(.system(size: 7, design: .monospaced))
                     .multilineTextAlignment(.center)
-                    .lineLimit(2)
+                    .lineLimit(1).minimumScaleFactor(0.7)
                     .frame(maxWidth: 236)
             }
         }
+        .frame(width: 244, height: 138)
+        .padding(.horizontal, 2)
+        .clipped()
     }
 
     private var friendshipSpriteName: String {
@@ -823,12 +777,11 @@ struct PocketPikaView: View {
     private func showPage(_ next: DevicePage) {
         if page == .cards && next != .cards { store.leaveCardGame() }
         page = next
-        if next == .cards { showingCardGame = true }
         if next == .options { showingOptions = true }
     }
 
     private func tapA() {
-        // A wakes the LCD without also spending Ice Cubes or navigating.
+        // A wakes the LCD without also spending Ice Water or navigating.
         if lcdSleeping { feedback(); showGreetingAfterWake(); return }
         guard acceptButton() else { return }
         switch page {
@@ -903,7 +856,7 @@ struct PocketPikaView: View {
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             HStack(spacing: 10) {
                 statCard("STEPS", store.todaySteps.formatted())
-                statCard("ICE CUBES", store.watts.formatted())
+                statCard("ICE WATER", store.watts.formatted())
             }
             HStack(spacing: 10) {
                 statCard("FRIEND", store.friendshipState)
@@ -958,7 +911,7 @@ struct PocketPikaView: View {
                                 in: RoundedRectangle(cornerRadius: 9))
                 }
             }
-            Text("10K+ unlocks occasional special Marill activities. Milestones reset daily; Ice Cubes still come only from steps.")
+            Text("10K+ unlocks occasional special Marill activities. Milestones reset daily; Ice Water still come only from steps.")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.7))
         }
@@ -971,7 +924,7 @@ struct PocketPikaView: View {
             Label("FRIENDSHIP DIARY", systemImage: "book.closed.fill")
                 .font(.system(size: 15, weight: .black, design: .rounded))
                 .foregroundStyle(ShellColor.bright)
-            Text("Diary and gift history")
+            Text("Your shared moments with Marill")
                 .font(.system(size: 11, design: .rounded))
                 .foregroundStyle(ShellColor.bright.opacity(0.65))
             if store.diaryEntries.isEmpty {
@@ -1067,7 +1020,7 @@ private struct StepSourceSheet: View {
                     Spacer()
                     if showDismiss { Button("Close") { dismiss() } }
                 }
-                Text("Choose a source to earn one Ice Cube for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
+                Text("Choose a source to earn one Ice Water for every 20 new steps. This screen stays open until Apple Health or Motion has responded.")
                     .font(.system(size: 13, design: .rounded))
 
                 Button {
@@ -1118,306 +1071,6 @@ private struct StepSourceSheet: View {
     }
 }
 
-private struct BirthdayCelebrationOverlay: View {
-    @State private var floating = false
-    @State private var sparkle = false
-
-    var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Text("🎈").offset(y: floating ? -7 : 5)
-                Spacer()
-                Text("🎈").offset(y: floating ? 5 : -7)
-            }
-            HStack {
-                Text("✨").opacity(sparkle ? 1 : 0.45)
-                Spacer()
-                Text("✨").opacity(sparkle ? 0.45 : 1)
-            }
-            Spacer()
-            HStack {
-                Text("🎉").offset(y: floating ? -4 : 4)
-                Spacer()
-                Text("🎂").scaleEffect(sparkle ? 1.08 : 0.94)
-            }
-        }
-        .font(.system(size: 25))
-        .padding(5)
-        .allowsHitTesting(false)
-        .onAppear {
-            withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) { floating = true }
-            withAnimation(.easeInOut(duration: 0.55).repeatForever(autoreverses: true)) { sparkle = true }
-        }
-        .accessibilityLabel("Animated balloons, confetti, and birthday cake")
-    }
-}
-
-private struct FullScreenCardGameView: View {
-    @ObservedObject var store: PocketPikaStore
-    @ObservedObject var sprites: SpriteLibrary
-    let onClose: () -> Void
-
-    @State private var reactionName = ""
-    @State private var reactionID = UUID()
-    @State private var reactionForPlayerWin = false
-    @State private var higherChoice = true
-
-    private let playerWinReactions = ["Marill Card Flop", "Grumpy Marill", "Game loss"]
-    private let marillWinReactions = ["Happy Marill", "Very Happy Marill", "Game win"]
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                LinearGradient(colors: [Color(red: 0.02, green: 0.08, blue: 0.20),
-                                        Color(red: 0.03, green: 0.28, blue: 0.55),
-                                        Color(red: 0.02, green: 0.08, blue: 0.20)],
-                               startPoint: .topLeading, endPoint: .bottomTrailing)
-                VStack(spacing: 18) {
-                    HStack {
-                        Button(action: closeGame) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 30))
-                                .foregroundStyle(.white.opacity(0.82))
-                        }
-                        .accessibilityLabel("Close card game")
-                        Spacer()
-                        Text("POCKET MARRIL")
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .tracking(1.2)
-                            .foregroundStyle(.white.opacity(0.88))
-                        Spacer()
-                        Image(systemName: "suit.spade.fill")
-                            .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(Color(red: 0.49, green: 0.79, blue: 1))
-                            .frame(width: 34)
-                    }
-                    .padding(.horizontal, 22)
-                    .padding(.top, 18)
-
-                    VStack(spacing: 6) {
-                        Text("HIGHER OR LOWER")
-                            .font(.system(size: 15, weight: .black, design: .monospaced))
-                            .tracking(2)
-                            .foregroundStyle(.white.opacity(0.9))
-                        Text(store.currentlyPlaying ? "GUESS THE NEXT CARD" : "PLAY AGAINST MARILL")
-                            .font(.system(size: 10, weight: .bold, design: .monospaced))
-                            .foregroundStyle(Color(red: 0.64, green: 0.83, blue: 1))
-                    }
-
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 24)
-                            .fill(LinearGradient(colors: [.white, Color(red: 0.81, green: 0.92, blue: 1)],
-                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
-                            .overlay(RoundedRectangle(cornerRadius: 24).strokeBorder(.white.opacity(0.65), lineWidth: 3))
-                            .shadow(color: .black.opacity(0.35), radius: 20, x: 0, y: 12)
-                        VStack(spacing: 10) {
-                            HStack {
-                                Text(store.currentlyPlaying ? cardRank(store.currentCard) : "?")
-                                    .font(.system(size: 46, weight: .black, design: .rounded))
-                                Spacer()
-                                Image(systemName: "suit.spade.fill")
-                                    .font(.system(size: 27, weight: .black))
-                            }
-                            Spacer()
-                            Image(systemName: "suit.spade.fill")
-                                .font(.system(size: 76, weight: .black))
-                            Spacer()
-                            HStack {
-                                Text(store.currentlyPlaying ? cardRank(store.currentCard) : "?")
-                                Spacer()
-                                Image(systemName: "suit.spade.fill")
-                            }
-                            .rotationEffect(.degrees(180))
-                            .font(.system(size: 23, weight: .black, design: .rounded))
-                        }
-                        .foregroundStyle(Color(red: 0.08, green: 0.24, blue: 0.44))
-                        .padding(25)
-                    }
-                    .frame(width: min(geometry.size.width * 0.63, 270), height: min(geometry.size.height * 0.30, 285))
-
-                    VStack(spacing: 5) {
-                        Text(store.currentlyPlaying ? "POT  ·  \(store.pendingWin) ICE CUBES" : "5 ICE CUBES TO PLAY")
-                            .font(.system(size: 13, weight: .black, design: .monospaced))
-                            .foregroundStyle(.white)
-                        if store.currentlyPlaying {
-                            Text("STREAK  \(store.streak)")
-                                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color(red: 0.64, green: 0.83, blue: 1))
-                        }
-                        if !store.lastCardResult.isEmpty {
-                            Text(store.lastCardResult)
-                                .font(.system(size: 12, weight: .medium, design: .rounded))
-                                .foregroundStyle(.white.opacity(0.8))
-                                .multilineTextAlignment(.center)
-                                .lineLimit(2)
-                                .frame(maxWidth: 340)
-                        }
-                    }
-
-                    if store.currentlyPlaying {
-                        HStack(spacing: 14) {
-                            choiceButton("LOWER", symbol: "arrow.down", color: Color(red: 0.22, green: 0.60, blue: 0.92)) {
-                                store.guess(false)
-                                PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
-                            }
-                            choiceButton("HIGHER", symbol: "arrow.up", color: Color(red: 0.10, green: 0.43, blue: 0.78)) {
-                                store.guess(true)
-                                PocketPikaSound.shared.play(store.currentlyPlaying ? .win : .lose)
-                            }
-                        }
-                        Button(action: { store.bankWin(); PocketPikaSound.shared.play(.gift) }) {
-                            Label("BANK \(store.pendingWin) ICE CUBES", systemImage: "tray.and.arrow.down.fill")
-                                .font(.system(size: 13, weight: .black, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 16)
-                                .background(.white.opacity(0.13), in: RoundedRectangle(cornerRadius: 16))
-                                .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.24)))
-                                .foregroundStyle(.white)
-                        }
-                        .padding(.horizontal, 30)
-                    } else {
-                        Button {
-                            store.startCardGame()
-                            PocketPikaSound.shared.play(.tap)
-                        } label: {
-                            Label("START GAME  ·  5 ICE CUBES", systemImage: "play.fill")
-                                .font(.system(size: 16, weight: .black, design: .rounded))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 19)
-                                .background(Color(red: 0.20, green: 0.67, blue: 1), in: RoundedRectangle(cornerRadius: 18))
-                                .foregroundStyle(Color(red: 0.02, green: 0.12, blue: 0.26))
-                        }
-                        .padding(.horizontal, 30)
-                    }
-
-                    Spacer(minLength: 0)
-                }
-                .padding(.bottom, 24)
-
-                if !reactionName.isEmpty {
-                    CardGameReactionOverlay(
-                        sprites: sprites,
-                        animationName: reactionName,
-                        playerWon: reactionForPlayerWin,
-                        onTap: dismissReaction
-                    )
-                    .transition(.opacity)
-                    .zIndex(10)
-                }
-            }
-            .frame(width: geometry.size.width, height: geometry.size.height)
-            .overlay(alignment: .bottom) {
-                if let marill = sprites.animation(named: "Greetings", fallbackSlot: "idle"), reactionName.isEmpty {
-                    AnimatedPixelSprite(animation: marill)
-                        .frame(width: 106, height: 96)
-                        .frame(maxWidth: .infinity)
-                        .offset(y: 15)
-                        .allowsHitTesting(false)
-                }
-            }
-        }
-        .preferredColorScheme(.dark)
-        .statusBarHidden()
-        .onChange(of: store.lastCardResult) { _, result in
-            if result.contains("Correct!") {
-                showReaction(playerWon: true)
-            } else if result.contains("Miss!") {
-                showReaction(playerWon: false)
-            }
-        }
-        .task(id: reactionID) {
-            guard !reactionName.isEmpty else { return }
-            do { try await Task.sleep(for: .seconds(3.2)) } catch { return }
-            guard !Task.isCancelled else { return }
-            dismissReaction()
-        }
-    }
-
-    private func cardRank(_ value: Int) -> String {
-        switch value {
-        case 11: return "J"
-        case 12: return "Q"
-        case 13: return "K"
-        case 14: return "A"
-        default: return String(value)
-        }
-    }
-
-    private func choiceButton(_ title: String, symbol: String, color: Color, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Label(title, systemImage: symbol)
-                .font(.system(size: 16, weight: .black, design: .rounded))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 19)
-                .background(color, in: RoundedRectangle(cornerRadius: 18))
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.22), radius: 10, x: 0, y: 7)
-        }
-    }
-
-    private func showReaction(playerWon: Bool) {
-        let choices = playerWon ? playerWinReactions : marillWinReactions
-        reactionName = choices.randomElement() ?? (playerWon ? "Grumpy Marill" : "Happy Marill")
-        reactionForPlayerWin = playerWon
-        reactionID = UUID()
-    }
-
-    private func dismissReaction() {
-        withAnimation(.easeOut(duration: 0.25)) { reactionName = "" }
-    }
-
-    private func closeGame() {
-        store.leaveCardGame()
-        onClose()
-    }
-}
-
-private struct CardGameReactionOverlay: View {
-    @ObservedObject var sprites: SpriteLibrary
-    let animationName: String
-    let playerWon: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                LinearGradient(colors: [Color(red: 0.01, green: 0.05, blue: 0.15),
-                                        Color(red: 0.03, green: 0.30, blue: 0.62),
-                                        Color(red: 0.01, green: 0.05, blue: 0.15)],
-                               startPoint: .top, endPoint: .bottom)
-                VStack(spacing: 22) {
-                    Text(playerWon ? "YOU WIN THIS ROUND" : "MARILL WINS THIS ROUND")
-                        .font(.system(size: 18, weight: .black, design: .rounded))
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 24)
-                    if let animation = sprites.animation(named: animationName, fallbackSlot: "play") {
-                        AnimatedPixelSprite(animation: animation)
-                            .frame(width: min(geometry.size.width * 0.9, 390), height: min(geometry.size.height * 0.52, 370))
-                            .clipShape(RoundedRectangle(cornerRadius: 18))
-                    } else {
-                        ProgressView().tint(.white).scaleEffect(1.8)
-                    }
-                    Text(animationName.uppercased())
-                        .font(.system(size: 14, weight: .black, design: .monospaced))
-                        .tracking(1)
-                        .foregroundStyle(Color(red: 0.75, green: 0.88, blue: 1))
-                    Text("TAP TO CONTINUE")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.72))
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(.vertical, 40)
-            }
-            .contentShape(Rectangle())
-            .onTapGesture(perform: onTap)
-            .frame(width: geometry.size.width, height: geometry.size.height)
-        }
-        .ignoresSafeArea()
-        .accessibilityLabel(playerWon ? "Marill reacts to your win" : "Marill celebrates winning")
-    }
-}
-
 private struct DeviceOptionsSheet: View {
     @ObservedObject var store: PocketPikaStore
     @ObservedObject var sprites: SpriteLibrary
@@ -1427,26 +1080,6 @@ private struct DeviceOptionsSheet: View {
     @State private var showingSource = false
     @AppStorage("pocket-marill-gs.virtual-lcd-sleep") private var virtualLCDSleep = true
     @AppStorage("pocket-marill-gs.sound-enabled") private var soundEnabled = true
-    @AppStorage("pocket-marill-gs.birthday-month-day") private var birthdayMonthDay = ""
-
-    private var birthdaySelection: Binding<Date> {
-        Binding(
-            get: {
-                let pieces = birthdayMonthDay.split(separator: "-").compactMap { Int($0) }
-                var parts = DateComponents()
-                parts.year = Calendar.current.component(.year, from: Date())
-                parts.month = pieces.count == 2 ? pieces[0] : Calendar.current.component(.month, from: Date())
-                parts.day = pieces.count == 2 ? pieces[1] : Calendar.current.component(.day, from: Date())
-                return Calendar.current.date(from: parts) ?? Date()
-            },
-            set: { date in
-                let parts = Calendar.current.dateComponents([.month, .day], from: date)
-                if let month = parts.month, let day = parts.day {
-                    birthdayMonthDay = String(format: "%02d-%02d", month, day)
-                }
-            }
-        )
-    }
 
     var body: some View {
         NavigationStack {
@@ -1457,12 +1090,6 @@ private struct DeviceOptionsSheet: View {
                     Text(store.connectionStatus).font(.footnote)
                     Button("Change step source") { showingSource = true }
                     Button("Refresh now") { Task { await store.refresh() } }
-                }
-                Section("YOUR BIRTHDAY") {
-                    DatePicker("Birthday", selection: birthdaySelection, displayedComponents: .date)
-                        .datePickerStyle(.compact)
-                    Text("On this month and day, Marill celebrates your birthday when you open the app. The year is not saved.")
-                        .font(.footnote)
                 }
                 Section("MARILL SPRITE GALLERY") {
                     LabeledContent("Gallery", value: "\(sprites.galleryCount) animations")
@@ -1486,7 +1113,7 @@ private struct DeviceOptionsSheet: View {
                     if let message = sprites.errorMessage {
                         Text(message).foregroundStyle(.red)
                     }
-                    Text("49 looping Marill animations include daily scenes, gifts, friendship and card-game reactions.")
+                    Text("48 approved two-pose animations cover greetings, daily routines, friendship, gifts and special activities.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("ORIGINAL DEVICE BEHAVIOR") {
@@ -1517,7 +1144,4 @@ private struct DeviceOptionsSheet: View {
         }
     }
 }
-
-
-
 
