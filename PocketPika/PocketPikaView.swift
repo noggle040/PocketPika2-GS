@@ -211,6 +211,14 @@ struct PocketPikaView: View {
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
             .background(unfolded ? ShellColor.back : ShellColor.caseBright)
+            .overlay {
+                if showingCardGame {
+                    fullScreenCardGame
+                        .ignoresSafeArea()
+                        .zIndex(100)
+                        .transition(.identity)
+                }
+            }
         }
         .ignoresSafeArea(.container, edges: .all)
         .statusBarHidden()
@@ -221,12 +229,6 @@ struct PocketPikaView: View {
         .sheet(isPresented: $showingOptions) {
             DeviceOptionsSheet(store: store, sprites: sprites)
                 .presentationDetents([.medium, .large])
-        }
-        .fullScreenCover(isPresented: $showingCardGame, onDismiss: {
-            store.leaveCardGame()
-            page = .companion
-        }) {
-            fullScreenCardGame
         }
         .sheet(isPresented: $showingFriendshipDiary) {
             ScrollView {
