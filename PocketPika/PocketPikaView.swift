@@ -611,6 +611,9 @@ struct PocketPikaView: View {
 
     private var fullScreenCardGame: some View {
         GeometryReader { geo in
+            let compact = geo.size.height < 760
+            let cardHeight = min(geo.size.height * (compact ? 0.27 : 0.31), compact ? 240 : 300)
+            let spriteHeight = min(geo.size.height * 0.115, 100)
             ZStack {
                 LinearGradient(colors: [ShellColor.back, Color(red: 0.04, green: 0.29, blue: 0.57), ShellColor.back], startPoint: .topLeading, endPoint: .bottomTrailing)
                     .ignoresSafeArea()
@@ -622,33 +625,33 @@ struct PocketPikaView: View {
                             Image(systemName: "xmark")
                                 .font(.system(size: 20, weight: .black))
                                 .foregroundStyle(ShellColor.ink)
-                                .frame(width: 48, height: 48)
+                                .frame(width: 42, height: 42)
                                 .background(ShellColor.bright, in: Circle())
                         }
                         Spacer()
-                        Text("POCKET MARRIL").font(.system(size: 22, weight: .black, design: .rounded)).tracking(2)
+                        Text("POCKET MARRIL").font(.system(size: compact ? 18 : 20, weight: .black, design: .rounded)).tracking(2).lineLimit(1).minimumScaleFactor(0.8)
                         Spacer()
-                        Image(systemName: "suit.spade.fill").font(.system(size: 28, weight: .black)).foregroundStyle(ShellColor.caseBright).frame(width: 48)
+                        Image(systemName: "suit.spade.fill").font(.system(size: 25, weight: .black)).foregroundStyle(ShellColor.caseBright).frame(width: 42)
                     }
                     .foregroundStyle(ShellColor.bright)
-                    .padding(.horizontal, 20).padding(.top, 12)
-                    Text("HIGHER OR LOWER").font(.system(size: 20, weight: .black, design: .monospaced)).foregroundStyle(ShellColor.bright).padding(.top, 18)
+                    .padding(.horizontal, 16).padding(.top, max(geo.safeAreaInsets.top, 8))
+                    Text("HIGHER OR LOWER").font(.system(size: compact ? 17 : 19, weight: .black, design: .monospaced)).foregroundStyle(ShellColor.bright).padding(.top, compact ? 7 : 10)
                     Text("POT  ·  \(store.pendingWin) ICE CUBES     STREAK  \(store.currentlyPlaying ? store.pendingWin : 0)")
-                        .font(.system(size: 13, weight: .bold, design: .monospaced)).foregroundStyle(ShellColor.bright.opacity(0.85)).padding(.top, 5)
-                    Spacer(minLength: 10)
+                        .font(.system(size: compact ? 11 : 12, weight: .bold, design: .monospaced)).foregroundStyle(ShellColor.bright.opacity(0.85)).padding(.top, 3)
+                    Spacer(minLength: 5)
                     ZStack {
                         RoundedRectangle(cornerRadius: 32).fill(LinearGradient(colors: [.white, Color(red: 0.82, green: 0.93, blue: 1)], startPoint: .topLeading, endPoint: .bottomTrailing)).shadow(color: .black.opacity(0.22), radius: 15, y: 8)
                         VStack {
-                            HStack { Text(store.currentlyPlaying ? "\(store.currentCard)" : "?").font(.system(size: 76, weight: .black, design: .rounded)); Spacer(); Image(systemName: "suit.spade.fill").font(.system(size: 44)) }
+                            HStack { Text(store.currentlyPlaying ? "\(store.currentCard)" : "?").font(.system(size: compact ? 52 : 60, weight: .black, design: .rounded)); Spacer(); Image(systemName: "suit.spade.fill").font(.system(size: compact ? 32 : 36)) }
                             Spacer()
-                            Image(systemName: "suit.spade.fill").font(.system(size: 105))
+                            Image(systemName: "suit.spade.fill").font(.system(size: compact ? 74 : 86))
                             Spacer()
-                            HStack { Image(systemName: "suit.spade.fill").font(.system(size: 36)); Spacer(); Text("\(store.pendingWin) ICE CUBES").font(.system(size: 18, weight: .black, design: .monospaced)) }
+                            HStack { Image(systemName: "suit.spade.fill").font(.system(size: 28)); Spacer(); Text("\(store.pendingWin) ICE CUBES").font(.system(size: compact ? 13 : 15, weight: .black, design: .monospaced)).lineLimit(1).minimumScaleFactor(0.75) }
                         }
-                        .foregroundStyle(ShellColor.ink).padding(30)
+                        .foregroundStyle(ShellColor.ink).padding(compact ? 20 : 24)
                     }
-                    .frame(width: min(geo.size.width - 56, 350), height: min(geo.size.height * 0.40, 390))
-                    Spacer(minLength: 8)
+                    .frame(width: min(geo.size.width - 40, 350), height: cardHeight)
+                    Spacer(minLength: 4)
                     Group {
                         if Date() < cardReactionUntil, let sprite = sprites.animation(named: cardReaction, fallbackSlot: "friend") {
                             AnimatedPixelSprite(animation: sprite).id(cardReaction)
@@ -656,22 +659,21 @@ struct PocketPikaView: View {
                             AnimatedPixelSprite(animation: sprite).id("card-idle")
                         } else { Image(systemName: "drop.fill").font(.system(size: 50)) }
                     }
-                    .frame(width: min(geo.size.width * 0.55, 220), height: min(geo.size.height * 0.19, 170))
-                    .clipped()
+                    .frame(width: min(geo.size.width * 0.46, 170), height: spriteHeight)
                     Text(store.lastCardResult.isEmpty ? "Guess higher or lower. Equal cards win!" : store.lastCardResult)
-                        .font(.system(size: 15, weight: .semibold, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(ShellColor.bright).lineLimit(2).frame(height: 44).padding(.horizontal, 20)
-                    HStack(spacing: 12) {
+                        .font(.system(size: compact ? 13 : 14, weight: .semibold, design: .rounded)).multilineTextAlignment(.center).foregroundStyle(ShellColor.bright).lineLimit(2).minimumScaleFactor(0.8).frame(height: compact ? 34 : 38).padding(.horizontal, 18)
+                    HStack(spacing: 10) {
                         cardChoiceButton("↓  LOWER", color: Color(red: 0.17, green: 0.59, blue: 0.91)) { makeCardGuess(false) }
                         cardChoiceButton("↑  HIGHER", color: Color(red: 0.12, green: 0.43, blue: 0.78)) { makeCardGuess(true) }
-                    }.frame(height: 78).padding(.horizontal, 18)
+                    }.frame(height: compact ? 60 : 66).padding(.horizontal, 16)
                     Button {
                         if store.currentlyPlaying { store.bankWin() } else { store.startCardGame() }
                         feedback()
                     } label: {
                         Text(store.currentlyPlaying ? "BANK \(store.pendingWin) ICE CUBES" : "START · 5 ICE CUBES")
-                            .font(.system(size: 17, weight: .black, design: .rounded)).foregroundStyle(ShellColor.bright)
-                            .frame(maxWidth: .infinity).frame(height: 62).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18)).overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.35), lineWidth: 1.5))
-                    }.padding(.horizontal, 24).padding(.top, 12).padding(.bottom, max(geo.safeAreaInsets.bottom, 16))
+                            .font(.system(size: compact ? 15 : 16, weight: .black, design: .rounded)).foregroundStyle(ShellColor.bright).lineLimit(1).minimumScaleFactor(0.8)
+                            .frame(maxWidth: .infinity).frame(height: compact ? 50 : 54).background(.white.opacity(0.16), in: RoundedRectangle(cornerRadius: 18)).overlay(RoundedRectangle(cornerRadius: 18).stroke(.white.opacity(0.35), lineWidth: 1.5))
+                    }.padding(.horizontal, 20).padding(.top, compact ? 6 : 8).padding(.bottom, max(geo.safeAreaInsets.bottom, 10))
                 }
             }
         }
@@ -681,7 +683,7 @@ struct PocketPikaView: View {
     private func cardChoiceButton(_ title: String, color: Color, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Text(title).font(.system(size: 19, weight: .black, design: .rounded)).foregroundStyle(.white)
-                .frame(maxWidth: .infinity).frame(height: 72).background(color, in: RoundedRectangle(cornerRadius: 24))
+                .frame(maxWidth: .infinity).frame(height: 60).background(color, in: RoundedRectangle(cornerRadius: 24))
         }.buttonStyle(.plain)
     }
 
